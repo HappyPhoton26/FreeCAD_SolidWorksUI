@@ -1,153 +1,35 @@
 # SolidWorks Style workbench for FreeCAD
 
-Makes FreeCAD 1.0 look and work like SolidWorks: a CommandManager ribbon with SolidWorks tool names,
-SolidWorks-style feature panels and shortcuts, and the light SolidWorks colour scheme.
-On Linux with SteamVR there's an extra: **Show in VR** floats the part you're editing in your headset.
+Makes FreeCAD 1.0 look and work like SolidWorks: CommandManager ribbon, SolidWorks tool and feature names,
+SolidWorks-style feature panels, shortcuts, light SolidWorks colour scheme with the blue-to-white
+gradient background. Optional extra: a VR viewer that floats the model you're editing in a SteamVR headset.
 
-![FreeCAD with the SolidWorks Style workbench](docs/images/overview.png)
-
----
-
-## 1. Install FreeCAD
-Install **FreeCAD 1.0 or newer** from <https://www.freecad.org/downloads.php>
-(Linux: `flatpak install flathub org.freecad.FreeCAD` works too). Start it once, then close it.
-
-## 2. Download this workbench
-On this GitHub page, click the green **Code** button → **Download ZIP**, then unzip it.
-(Or `git clone git@github.com:HappyPhoton26/FreeCAD_SolidWorksUI.git`.)
-
-## 3. Run the installer
-
-### Windows
-1. Close FreeCAD.
-2. Open the unzipped folder and double-click **`install.bat`**.
-   If Windows shows "Windows protected your PC", click **More info → Run anyway**.
-3. A window shows where the workbench was installed. Press any key to close it.
-
-To also copy my exact FreeCAD settings (theme, toolbars, shortcuts), open a Command Prompt in the folder and run
-`install.bat -MySettings`. Your old settings are kept as `user.cfg.before_install_<date>`.
-
-> Manual install (if the script doesn't work): copy the `SolidStyle` folder into FreeCAD's `Mod` folder.
-> To find that folder, open FreeCAD → **View → Panels → Python console** and type `App.getUserAppDataDir()`.
-> Usually it's `%APPDATA%\FreeCAD\Mod` (FreeCAD 1.1+: `%APPDATA%\FreeCAD\v1-1\Mod`). Restart FreeCAD afterwards.
-
-### Linux
+## Install (Linux)
 ```
-cd FreeCAD_SolidWorksUI
 ./install.sh
 ```
-Options: `--no-vr` (skip the VR viewer), `--my-settings` (also copy my exact FreeCAD settings; close FreeCAD first).
+Then start FreeCAD and choose **SolidWorks Style** in the workbench list. The first time, it applies the
+SolidWorks look (light theme, gradient background, part colours, SolidWorks-like mouse).
+**Tools > Restore My Settings** puts your old look back.
 
-### macOS
-Copy the `SolidStyle` folder into FreeCAD's `Mod` folder (find it with `App.getUserAppDataDir()` as above,
-usually `~/Library/Application Support/FreeCAD/Mod`) and restart FreeCAD.
+Options: `--no-vr` (skip the VR viewer), `--my-settings` (also copy the exact FreeCAD settings in
+`my_settings/user.cfg`: theme, toolbars, shortcuts, navigation; close FreeCAD first).
 
----
-
-## 4. Turn it on
-Start FreeCAD and choose **SolidWorks Style** in the workbench drop-down list on the toolbar:
-
-![Pick SolidWorks Style in the workbench list](docs/images/workbench-select.png)
-
-The first time, it switches FreeCAD to the SolidWorks look: light theme, blue-to-white background,
-grey parts with black edges, middle-mouse rotate.
-**Tools → Restore My Settings** puts your old look back. You can switch back to it any time from the same list.
-
-To start in it every time: **Edit → Preferences → General → Start up workbench → SolidWorks Style**.
-
----
-
-## 5. Using it
-
-### The CommandManager (ribbon)
-The tabs under the buttons switch between **Features, Sketch, Evaluate, Assembly, Drawing**, just like SolidWorks.
-Hover over any button to see what it does, plus the original FreeCAD name.
-
-### Making a feature (Extruded Boss/Base example)
-1. Click **Extruded Boss/Base**.
-2. Pick a plane or a flat face; a sketch opens and the ribbon jumps to the **Sketch** tab.
-3. Draw your profile (Corner Rectangle, Circle, Smart Dimension...).
-
-   ![Sketch tab while editing a sketch](docs/images/sketch-mode.png)
-
-4. Click **Exit Sketch** (or the green tick in the top-right of the view).
-5. The **Boss-Extrude** panel opens on the left: choose the end condition (Blind, Through All, Up To Surface,
-   Mid Plane...), type the depth or **drag the arrow** in the view, then click **OK**.
-
-   ![Extrude panel with drag arrow](docs/images/extrude-panel.png)
-
-**Extruded Cut, Revolved Boss/Cut, Fillet, Chamfer, Shell and Hole Wizard** work the same way.
-Double-click a feature in the tree to edit it with the same panel.
-
-### Assemblies
-On the **Assembly** tab: **New Assembly → Insert Components → Mate**. The first part is fixed automatically,
-like SolidWorks' (f). Then pick a face or edge on each of two parts.
-
-![Assembly tab](docs/images/assembly-tab.png)
-
-### Shortcuts
-| Key | Does |
-|---|---|
-| Ctrl+1 … Ctrl+7 | Standard views (Front, Back, Left, Right, Top, Bottom, Isometric) |
-| Ctrl+8 | Normal To |
-| F | Zoom to fit |
-| S | Shortcut bar at the mouse |
-| Ctrl+B | Rebuild |
-
-More detail: [SolidStyle/README.md](SolidStyle/README.md).
-
----
-
-## 6. Show the model in VR (Linux + SteamVR)
-The installer sets this up on Linux when SteamVR is installed. It needs `gcc` to build the viewer.
-
-1. Start SteamVR and put the headset on (or have it ready).
-2. In FreeCAD, click **Show in VR** at the right end of the ribbon. It's on every tab.
-   Click it again to hide the model.
-
-   ![Show in VR button](docs/images/vr-button.png)
-
-3. The part you're editing floats in front of you at **real size**, and updates live while you keep working on
-   the desktop. It turns when you turn the FreeCAD view.
-4. Controllers: **grip** grabs and moves it, **both grips** stretch to scale it, **grip + thumbstick** scales it.
-5. **VR keys** (next to the button) shows the keyboard shortcuts:
-
-| Keys | Does |
-|---|---|
-| Ctrl+Alt+V | Show / hide the model in VR (same as the button) |
-| Ctrl+Alt+S | Type a scale (1 = real size, 5 = 5x bigger) |
-| Ctrl+Alt+1 | Real size (1:1) |
-| Ctrl+Alt+2 / 3 | Big (about 1.2 m) / desk size (about 35 cm) |
-| Ctrl+Alt+= / - | 1.5x bigger / smaller |
-| Ctrl+Alt+Arrows | Move left / right / up / down (1 cm per press) |
-| Ctrl+Alt+PgUp / PgDn | Move away / closer |
-| Ctrl+Alt+0 | Bring it back in front of you |
-| Ctrl+Shift+Alt+Arrows | Turn / tilt (5° per press) |
-| Ctrl+Shift+Alt+PgUp / PgDn | Roll |
-| Ctrl+Alt+U | Stand it upright |
-| Ctrl+Alt+4 | Turn with the FreeCAD view on / off |
-
-> **Windows:** the VR viewer is Linux-only for now, so the Windows installer leaves it out and the
-> Show in VR button doesn't appear. Everything else works.
-
----
+**Windows / macOS:** copy the `SolidStyle` folder into FreeCAD's `Mod` folder
+(in FreeCAD's Python console, `App.getUserAppDataDir()` shows where that is), then restart FreeCAD.
 
 ## What's in here
-| Path | What it is |
+| Folder | What it is |
 |---|---|
-| `SolidStyle/` | The workbench (all platforms) |
-| `install.bat`, `install.ps1` | Windows installer |
-| `install.sh` | Linux installer (workbench + VR viewer) |
-| `vr/freecad_addon/` | FreeCAD add-on for VR: exports the open model, the VR buttons and hotkeys |
-| `vr/viewer/` | The VR viewer (SteamVR overlay, C source, Linux) |
-| `my_settings/user.cfg` | My FreeCAD settings, used by `--my-settings` / `-MySettings` |
-| `docs/images/` | Screenshots for this page |
+| `SolidStyle/` | The workbench (see `SolidStyle/README.md` for all features) |
+| `vr/freecad_addon/` | FreeCAD add-on: exports the open model for VR, the **VR** and **?** toolbar buttons, VR hotkeys |
+| `vr/viewer/` | The VR viewer (SteamVR overlay, C source); built into `~/fcvr` by the installer |
+| `my_settings/user.cfg` | Snapshot of the FreeCAD settings on the machine this was made on |
 
-## Differences from SolidWorks
-- FreeCAD is Z-up: "Front Plane" is FreeCAD's XZ plane, "Top Plane" is XY.
-- Mouse: middle-drag rotates, Shift+middle pans.
-- Each Body holds one solid. Mates are FreeCAD joints (Concentric ≈ Revolute, Coincident ≈ Distance 0, Lock ≈ Fixed).
-- Patterns, Mirror, Sweep, Loft, Draft and Helix still use FreeCAD's own panels.
+## Using VR
+Click **VR** in FreeCAD (or Ctrl+Alt+V) with SteamVR running. Click **?** for the hotkey list.
+The model follows the FreeCAD view; Ctrl+Alt+S types a scale, grip on the controller grabs it.
 
-## Updating (maintainer)
-On the main machine: `~/FreeCAD/solidworks_workbench/update_from_this_machine.sh`, copy into this repo, commit, push.
+## Updating this folder (maintainer)
+After changing the workbench, VR files or FreeCAD settings on the main machine, run
+`./update_from_this_machine.sh`, then commit and push.

@@ -315,22 +315,21 @@ def register_commands():
         Gui.addCommand("VR_Help", _HelpCmd())
 
 
-def ensure_global_toolbar():
-    """A 'VR' toolbar in FreeCAD's Global toolbars (user.cfg), so it shows in every workbench, every start."""
+def remove_global_toolbar():
+    """Drop the old floating 'VR' Global toolbar; the buttons now live in the SolidWorks Style ribbon."""
     tbs = App.ParamGet("User parameter:BaseApp/Workbench/Global/Toolbar")
     for g in tbs.GetGroups():
         if tbs.GetGroup(g).GetString("Name") == "VR":
-            grp = tbs.GetGroup(g)
-            break
-    else:
-        n = 1
-        while "Custom_%d" % n in tbs.GetGroups():
-            n += 1
-        grp = tbs.GetGroup("Custom_%d" % n)
-        grp.SetString("Name", "VR")
-    grp.SetBool("Active", True)
-    grp.SetString("VR_Toggle", "vr_live_export")
-    grp.SetString("VR_Help", "vr_live_export")
+            tbs.RemGroup(g)
+    try:
+        import FreeCADGui as Gui
+        from PySide import QtWidgets
+        for tb in Gui.getMainWindow().findChildren(QtWidgets.QToolBar):
+            if tb.windowTitle() == "VR":
+                tb.hide()
+                tb.deleteLater()
+    except Exception:
+        pass
 
 
 def send(cmd):
@@ -400,7 +399,7 @@ def start():
         App.Console.PrintWarning("VRLiveExport: no close hook (%s)\n" % e)
     try:
         register_commands()
-        ensure_global_toolbar()
+        remove_global_toolbar()
         install_hotkeys()
     except Exception as e:
         App.Console.PrintWarning("VRLiveExport hotkeys not installed: %s\n" % e)
