@@ -1,0 +1,8 @@
+# FreeCAD backups and scratch
+*.FCBak
+__pycache__/
+.work/
+.sstest/
+.run_*.py
+.dbg*
+.test_*
