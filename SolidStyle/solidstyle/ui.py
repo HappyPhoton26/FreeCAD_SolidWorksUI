@@ -224,6 +224,21 @@ class CommandManager(QtWidgets.QWidget):
                         h.addLayout(col)
                         last_sep = False
             h.addStretch(1)
+            # VR at the right end of every tab, so it's always one click away
+            if exists("VR_Toggle"):
+                h.addWidget(_sep())
+                h.addSpacing(3)
+                b = CmdButton("VR_Toggle", "Show\nin VR")
+                h.addWidget(b)
+                btns.append(b)
+                if exists("VR_Help"):
+                    col = QtWidgets.QVBoxLayout()
+                    col.setSpacing(0)
+                    b = CmdButton("VR_Help", "VR keys", big=False)
+                    col.addWidget(b)
+                    btns.append(b)
+                    col.addStretch(1)
+                    h.addLayout(col)
             self.tabs.addTab(page, name)
             self.buttons[name] = btns
 
