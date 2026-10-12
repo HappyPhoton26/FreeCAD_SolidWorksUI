@@ -17,6 +17,17 @@ OUT = os.path.expanduser("~/.vr-model-viewer/model.bin")
 _state = {"timer": None, "doc": None, "observer": None, "poll": None}
 
 
+def _replace(tmp, dst):
+    """os.replace, retried: on Windows it fails while the viewer has the file open for a moment."""
+    for i in range(20):
+        try:
+            os.replace(tmp, dst)
+            return
+        except PermissionError:
+            time.sleep(0.005)
+    os.replace(tmp, dst)
+
+
 def _color(obj):
     """FreeCAD look of obj: (diffuse rgba, ambient rgb, specular rgb, shininess, line rgb, line width)."""
     vo = getattr(obj, "ViewObject", None)
@@ -138,7 +149,7 @@ def export(doc=None):
         f.write(struct.pack("<4sII", b"VRMV", 2, len(chunks)))
         for c in chunks:
             f.write(c)
-    os.replace(tmp, OUT)
+    _replace(tmp, OUT)
     App.Console.PrintLog("VRLiveExport: %s -> %d objects in %.2f s\n" % (doc.Name, len(chunks), time.time() - t0))
 
 
@@ -209,6 +220,12 @@ def ask_scale():
         send("scale %g" % v)
 
 
+WINDOWS = os.name == "nt"
+# Windows: the installer puts fcvr.exe, openvr_api.dll and the SteamVR input files here
+WIN_DIR = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "fcvr")
+_NO_WINDOW = 0x08000000   # CREATE_NO_WINDOW
+
+
 def _viewer_cmd(arg):
     cmd = [os.path.expanduser("~/fcvr/run.sh"), arg]
     if os.path.exists("/.flatpak-info"):
@@ -216,21 +233,53 @@ def _viewer_cmd(arg):
     return cmd
 
 
+def _win_running():
+    import subprocess
+    out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq fcvr.exe", "/NH"], capture_output=True, text=True,
+                         creationflags=_NO_WINDOW, timeout=10).stdout
+    return "fcvr.exe" in out.lower()
+
+
+def _win_stop():
+    import subprocess
+    subprocess.run(["taskkill", "/IM", "fcvr.exe", "/F"], capture_output=True, creationflags=_NO_WINDOW, timeout=10)
+
+
+def _win_toggle():
+    """Start/stop fcvr.exe (SteamVR on Windows, e.g. a Steam Frame over Steam Link)."""
+    import subprocess
+    if _win_running():
+        _win_stop()
+        return "VR viewer stopped"
+    exe = os.path.join(WIN_DIR, "fcvr.exe")
+    if not os.path.exists(exe):
+        return "VR viewer not installed (run install.bat from FreeCAD_SolidWorksUI)"
+    log = open(os.path.join(WIN_DIR, "fcvr.log"), "w")
+    subprocess.Popen([exe, "--parent-pid", str(os.getpid())], cwd=WIN_DIR, stdout=log, stderr=subprocess.STDOUT,
+                     stdin=subprocess.DEVNULL, creationflags=_NO_WINDOW)
+    return "VR viewer started (log: %s)" % os.path.join(WIN_DIR, "fcvr.log")
+
+
 def stop_viewer():
     """FreeCAD is quitting: close the VR model too (the viewer also notices on its own if FreeCAD crashes)."""
     import subprocess
     try:
-        subprocess.run(_viewer_cmd("stop"), capture_output=True, timeout=5)
+        if WINDOWS:
+            _win_stop()
+        else:
+            subprocess.run(_viewer_cmd("stop"), capture_output=True, timeout=5)
     except Exception:
         pass
 
 
 def toggle_viewer():
-    """Start/stop ~/fcvr/fcvr (through flatpak-spawn when FreeCAD runs as a flatpak)."""
+    """Start/stop the VR viewer: ~/fcvr/fcvr on Linux (through flatpak-spawn for the flatpak), fcvr.exe on Windows."""
     import subprocess
-    cmd = _viewer_cmd("toggle")
     try:
-        out = subprocess.run(cmd, capture_output=True, text=True, timeout=10).stdout.strip()
+        if WINDOWS:
+            out = _win_toggle()
+        else:
+            out = subprocess.run(_viewer_cmd("toggle"), capture_output=True, text=True, timeout=10).stdout.strip()
     except Exception as e:
         out = "could not start the VR viewer: %s" % e
     App.Console.PrintMessage("VR: %s\n" % out)
@@ -367,7 +416,10 @@ def _write_view():
     tmp = VIEW + ".tmp"
     with open(tmp, "w") as f:
         f.write(txt)
-    os.replace(tmp, VIEW)
+    try:
+        _replace(tmp, VIEW)
+    except OSError:
+        _state["view_txt"] = None   # try again next tick
 
 
 def install_hotkeys():

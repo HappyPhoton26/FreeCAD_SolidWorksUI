@@ -2,7 +2,8 @@
 
 Makes FreeCAD 1.0 look and work like SolidWorks: a CommandManager ribbon with SolidWorks tool names,
 SolidWorks-style feature panels and shortcuts, and the light SolidWorks colour scheme.
-On Linux with SteamVR there's an extra: **Show in VR** floats the part you're editing in your headset.
+With SteamVR (Windows or Linux) there's an extra: **Show in VR** floats the part you're editing in your headset,
+for example a Steam Frame connected to the PC with Steam Link.
 
 ![FreeCAD with the SolidWorks Style workbench](docs/images/overview.png)
 
@@ -24,8 +25,11 @@ On this GitHub page, click the green **Code** button → **Download ZIP**, then 
    If Windows shows "Windows protected your PC", click **More info → Run anyway**.
 3. A window shows where the workbench was installed. Press any key to close it.
 
-To also copy my exact FreeCAD settings (theme, toolbars, shortcuts), open a Command Prompt in the folder and run
-`install.bat -MySettings`. Your old settings are kept as `user.cfg.before_install_<date>`.
+This installs the workbench **and the VR viewer** (to `%LOCALAPPDATA%\fcvr`).
+
+Options (open a Command Prompt in the folder): `install.bat -MySettings` also copies my exact FreeCAD settings
+(theme, toolbars, shortcuts); your old ones are kept as `user.cfg.before_install_<date>`.
+`install.bat -NoVR` skips the VR viewer.
 
 > Manual install (if the script doesn't work): copy the `SolidStyle` folder into FreeCAD's `Mod` folder.
 > To find that folder, open FreeCAD → **View → Panels → Python console** and type `App.getUserAppDataDir()`.
@@ -98,8 +102,13 @@ More detail: [SolidStyle/README.md](SolidStyle/README.md).
 
 ---
 
-## 6. Show the model in VR (Linux + SteamVR)
-The installer sets this up on Linux when SteamVR is installed. It needs `gcc` to build the viewer.
+## 6. Show the model in VR (Windows or Linux, with SteamVR)
+The installer sets this up. You need **SteamVR** (free on Steam) and a headset it can see.
+
+**Steam Frame on Windows (Steam Link / VR link):** install Steam and SteamVR on the PC, connect the Frame to the
+PC with Steam Link, and make sure SteamVR is running (you'll see the SteamVR home or dashboard in the headset).
+FreeCAD stays on the PC's desktop; the model appears in the headset.
+On Linux the installer builds the viewer, which needs `gcc`.
 
 1. Start SteamVR and put the headset on (or have it ready).
 2. In FreeCAD, click **Show in VR** at the right end of the ribbon. It's on every tab.
@@ -127,8 +136,9 @@ The installer sets this up on Linux when SteamVR is installed. It needs `gcc` to
 | Ctrl+Alt+U | Stand it upright |
 | Ctrl+Alt+4 | Turn with the FreeCAD view on / off |
 
-> **Windows:** the VR viewer is Linux-only for now, so the Windows installer leaves it out and the
-> Show in VR button doesn't appear. Everything else works.
+**If nothing shows up in VR:** check SteamVR is running *before* you click Show in VR, then click it twice
+(off and on). The viewer writes a log: on Windows `%LOCALAPPDATA%\fcvr\fcvr.log`, on Linux `~/fcvr/fcvr.log`.
+It needs a graphics driver with OpenGL 4.3 (any recent NVIDIA, AMD or Intel driver).
 
 ---
 
@@ -138,8 +148,9 @@ The installer sets this up on Linux when SteamVR is installed. It needs `gcc` to
 | `SolidStyle/` | The workbench (all platforms) |
 | `install.bat`, `install.ps1` | Windows installer |
 | `install.sh` | Linux installer (workbench + VR viewer) |
+| `vr/viewer/windows/` | Ready-built Windows viewer: `fcvr.exe`, Valve's `openvr_api.dll` (BSD licence in `OPENVR_LICENSE`) |
 | `vr/freecad_addon/` | FreeCAD add-on for VR: exports the open model, the VR buttons and hotkeys |
-| `vr/viewer/` | The VR viewer (SteamVR overlay, C source, Linux) |
+| `vr/viewer/` | The VR viewer (SteamVR overlay, C source; `build.sh` for Linux, `build_windows.sh` cross-compiles `windows/fcvr.exe`) |
 | `my_settings/user.cfg` | My FreeCAD settings, used by `--my-settings` / `-MySettings` |
 | `docs/images/` | Screenshots for this page |
 

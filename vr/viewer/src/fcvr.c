@@ -15,25 +15,167 @@
 // Controllers (actions.json / bindings_frame_controller.json): grip = grab and move, both grips = stretch
 // to scale, grip + thumbstick up/down = scale. The trigger is left alone for the desktop panels.
 // The model starts at real size.
+// Builds on Linux (EGL, build.sh) and Windows (WGL; build_windows.sh cross-compiles fcvr.exe).
+#define _USE_MATH_DEFINES
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <tlhelp32.h>
+#include <GL/gl.h>
+#include <GL/glext.h>
+#else
 #define GL_GLEXT_PROTOTYPES
 #include <EGL/egl.h>
 #include <GL/gl.h>
 #include <GL/glext.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <strings.h>
+#endif
 #include <openvr/openvr_capi.h>
 #include <math.h>
 #include <signal.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
-#include <unistd.h>
-#include <dirent.h>
-#include <strings.h>
 
 extern intptr_t VR_InitInternal(EVRInitError *peError, EVRApplicationType eType);
 extern void VR_ShutdownInternal(void);
 extern intptr_t VR_GetGenericInterface(const char *pchInterfaceVersion, EVRInitError *peError);
+
+#ifdef _WIN32
+/* ---------- Windows: GL 1.2+ functions come from the driver via wglGetProcAddress ---------- */
+#define GLFUNCS(X) \
+    X(PFNGLBINDBUFFERPROC, glBindBuffer) X(PFNGLBUFFERDATAPROC, glBufferData) \
+    X(PFNGLGENBUFFERSPROC, glGenBuffers) X(PFNGLGENVERTEXARRAYSPROC, glGenVertexArrays) \
+    X(PFNGLBINDVERTEXARRAYPROC, glBindVertexArray) X(PFNGLENABLEVERTEXATTRIBARRAYPROC, glEnableVertexAttribArray) \
+    X(PFNGLVERTEXATTRIBPOINTERPROC, glVertexAttribPointer) X(PFNGLCREATESHADERPROC, glCreateShader) \
+    X(PFNGLSHADERSOURCEPROC, glShaderSource) X(PFNGLCOMPILESHADERPROC, glCompileShader) \
+    X(PFNGLGETSHADERIVPROC, glGetShaderiv) X(PFNGLGETSHADERINFOLOGPROC, glGetShaderInfoLog) \
+    X(PFNGLCREATEPROGRAMPROC, glCreateProgram) X(PFNGLATTACHSHADERPROC, glAttachShader) \
+    X(PFNGLLINKPROGRAMPROC, glLinkProgram) X(PFNGLUSEPROGRAMPROC, glUseProgram) \
+    X(PFNGLGETUNIFORMLOCATIONPROC, glGetUniformLocation) X(PFNGLUNIFORMMATRIX4FVPROC, glUniformMatrix4fv) \
+    X(PFNGLUNIFORM3FPROC, glUniform3f) X(PFNGLUNIFORM2FPROC, glUniform2f) X(PFNGLUNIFORM1FPROC, glUniform1f) \
+    X(PFNGLGENRENDERBUFFERSPROC, glGenRenderbuffers) X(PFNGLBINDRENDERBUFFERPROC, glBindRenderbuffer) \
+    X(PFNGLRENDERBUFFERSTORAGEMULTISAMPLEPROC, glRenderbufferStorageMultisample) \
+    X(PFNGLGENFRAMEBUFFERSPROC, glGenFramebuffers) X(PFNGLBINDFRAMEBUFFERPROC, glBindFramebuffer) \
+    X(PFNGLFRAMEBUFFERRENDERBUFFERPROC, glFramebufferRenderbuffer) \
+    X(PFNGLFRAMEBUFFERTEXTURE2DPROC, glFramebufferTexture2D) X(PFNGLTEXSTORAGE2DPROC, glTexStorage2D) \
+    X(PFNGLBLITFRAMEBUFFERPROC, glBlitFramebuffer)
+#define GLDECL(T, n) static T p_##n;
+GLFUNCS(GLDECL)
+#define glBindBuffer p_glBindBuffer
+#define glBufferData p_glBufferData
+#define glGenBuffers p_glGenBuffers
+#define glGenVertexArrays p_glGenVertexArrays
+#define glBindVertexArray p_glBindVertexArray
+#define glEnableVertexAttribArray p_glEnableVertexAttribArray
+#define glVertexAttribPointer p_glVertexAttribPointer
+#define glCreateShader p_glCreateShader
+#define glShaderSource p_glShaderSource
+#define glCompileShader p_glCompileShader
+#define glGetShaderiv p_glGetShaderiv
+#define glGetShaderInfoLog p_glGetShaderInfoLog
+#define glCreateProgram p_glCreateProgram
+#define glAttachShader p_glAttachShader
+#define glLinkProgram p_glLinkProgram
+#define glUseProgram p_glUseProgram
+#define glGetUniformLocation p_glGetUniformLocation
+#define glUniformMatrix4fv p_glUniformMatrix4fv
+#define glUniform3f p_glUniform3f
+#define glUniform2f p_glUniform2f
+#define glUniform1f p_glUniform1f
+#define glGenRenderbuffers p_glGenRenderbuffers
+#define glBindRenderbuffer p_glBindRenderbuffer
+#define glRenderbufferStorageMultisample p_glRenderbufferStorageMultisample
+#define glGenFramebuffers p_glGenFramebuffers
+#define glBindFramebuffer p_glBindFramebuffer
+#define glFramebufferRenderbuffer p_glFramebufferRenderbuffer
+#define glFramebufferTexture2D p_glFramebufferTexture2D
+#define glTexStorage2D p_glTexStorage2D
+#define glBlitFramebuffer p_glBlitFramebuffer
+
+typedef HGLRC (WINAPI *CreateCtxAttribs)(HDC, HGLRC, const int *);
+
+// A GL 4.3 core context on a hidden window (Windows has no surfaceless context).
+static int gl_init(void) {
+    WNDCLASSA wc = {0}; wc.lpfnWndProc = DefWindowProcA; wc.hInstance = GetModuleHandleA(NULL); wc.lpszClassName = "fcvr";
+    RegisterClassA(&wc);
+    HWND hw = CreateWindowA("fcvr", "fcvr", WS_OVERLAPPEDWINDOW, 0, 0, 16, 16, NULL, NULL, wc.hInstance, NULL);
+    if (!hw) { fprintf(stderr, "CreateWindow failed\n"); return 0; }
+    HDC dc = GetDC(hw);
+    PIXELFORMATDESCRIPTOR pfd = {sizeof pfd, 1, PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER, PFD_TYPE_RGBA, 32};
+    pfd.cDepthBits = 24; pfd.iLayerType = PFD_MAIN_PLANE;
+    if (!SetPixelFormat(dc, ChoosePixelFormat(dc, &pfd), &pfd)) { fprintf(stderr, "SetPixelFormat failed\n"); return 0; }
+    HGLRC tmp = wglCreateContext(dc); wglMakeCurrent(dc, tmp);
+    CreateCtxAttribs mk = (CreateCtxAttribs)(void *)wglGetProcAddress("wglCreateContextAttribsARB");
+    if (!mk) { fprintf(stderr, "wglCreateContextAttribsARB missing (update the graphics driver)\n"); return 0; }
+    int attr[] = {0x2091, 4, 0x2092, 3, 0x9126, 0x1, 0};   // WGL major 4, minor 3, core profile
+    HGLRC rc = mk(dc, NULL, attr);
+    if (!rc) { fprintf(stderr, "no OpenGL 4.3 context (update the graphics driver)\n"); return 0; }
+    wglMakeCurrent(dc, rc); wglDeleteContext(tmp);
+    int ok = 1;
+#define GLLOAD(T, n) if (!(p_##n = (T)(void *)wglGetProcAddress(#n))) { fprintf(stderr, "missing %s\n", #n); ok = 0; }
+    GLFUNCS(GLLOAD)
+    return ok;
+}
+static void sleep_us(double us) { Sleep((DWORD)(us / 1000 + 0.5)); }
+static double now_s(void) {
+    static LARGE_INTEGER f; LARGE_INTEGER c;
+    if (!f.QuadPart) QueryPerformanceFrequency(&f);
+    QueryPerformanceCounter(&c); return (double)c.QuadPart / f.QuadPart;
+}
+static int my_pid(void) { return (int)GetCurrentProcessId(); }
+static int pid_alive(int pid) {
+    HANDLE h = OpenProcess(SYNCHRONIZE, FALSE, (DWORD)pid); if (!h) return 0;
+    DWORD r = WaitForSingleObject(h, 0); CloseHandle(h); return r == WAIT_TIMEOUT;
+}
+// Is FreeCAD running? (FreeCAD.exe)
+static int freecad_running(void) {
+    HANDLE s = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0); if (s == INVALID_HANDLE_VALUE) return 1;
+    PROCESSENTRY32 e; e.dwSize = sizeof e; int found = 0;
+    for (BOOL ok = Process32First(s, &e); ok && !found; ok = Process32Next(s, &e))
+        found = !_stricmp(e.szExeFile, "freecad.exe");
+    CloseHandle(s); return found;
+}
+#else
+static int gl_init(void) {
+    // EGL / GL context (surfaceless)
+    EGLDisplay dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    if (!eglInitialize(dpy, NULL, NULL)) { fprintf(stderr, "eglInitialize failed\n"); return 0; }
+    eglBindAPI(EGL_OPENGL_API);
+    EGLint cattr[] = {EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_SURFACE_TYPE, EGL_PBUFFER_BIT, EGL_NONE};
+    EGLConfig cfg; EGLint ncfg;
+    if (!eglChooseConfig(dpy, cattr, &cfg, 1, &ncfg) || !ncfg) { fprintf(stderr, "no EGL config\n"); return 0; }
+    EGLint ctxattr[] = {EGL_CONTEXT_MAJOR_VERSION, 4, EGL_CONTEXT_MINOR_VERSION, 3,
+                        EGL_CONTEXT_OPENGL_PROFILE_MASK, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT, EGL_NONE};
+    EGLContext ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, ctxattr);
+    if (!ctx) { fprintf(stderr, "eglCreateContext failed 0x%x\n", eglGetError()); return 0; }
+    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx);
+    return 1;
+}
+static void sleep_us(double us) { usleep((useconds_t)us); }
+static double now_s(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec + t.tv_nsec * 1e-9; }
+static int my_pid(void) { return (int)getpid(); }
+static int pid_alive(int pid) { return kill(pid, 0) == 0; }
+// Is FreeCAD running? (any process named FreeCAD/freecad; flatpak processes are visible from the host too)
+static int freecad_running(void) {
+    DIR *d = opendir("/proc"); struct dirent *e; int found = 0;
+    if (!d) return 1;
+    while (!found && (e = readdir(d))) {
+        if (e->d_name[0] < '0' || e->d_name[0] > '9') continue;
+        char p[300], comm[32] = ""; snprintf(p, sizeof p, "/proc/%s/comm", e->d_name);
+        FILE *f = fopen(p, "r"); if (!f) continue;
+        if (fgets(comm, sizeof comm, f)) { comm[strcspn(comm, "\n")] = 0; found = !strcasecmp(comm, "freecad"); }
+        fclose(f);
+    }
+    closedir(d);
+    return found;
+}
+#endif
 
 static volatile int g_quit;
 static void on_sig(int s) { (void)s; g_quit = 1; }
@@ -257,27 +399,16 @@ static void attribs(const int *sizes, int count, int stride) {
     }
 }
 
-// Is FreeCAD running? (any process named FreeCAD/freecad; flatpak processes are visible from the host too)
-static int freecad_running(void) {
-    DIR *d = opendir("/proc"); struct dirent *e; int found = 0;
-    if (!d) return 1;
-    while (!found && (e = readdir(d))) {
-        if (e->d_name[0] < '0' || e->d_name[0] > '9') continue;
-        char p[300], comm[32] = ""; snprintf(p, sizeof p, "/proc/%s/comm", e->d_name);
-        FILE *f = fopen(p, "r"); if (!f) continue;
-        if (fgets(comm, sizeof comm, f)) { comm[strcspn(comm, "\n")] = 0; found = !strcasecmp(comm, "freecad"); }
-        fclose(f);
-    }
-    closedir(d);
-    return found;
-}
-
-static double now_s(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec + t.tv_nsec * 1e-9; }
-
 int main(int argc, char **argv) {
     signal(SIGINT, on_sig); signal(SIGTERM, on_sig);
+#ifdef _WIN32
+    setvbuf(stdout, NULL, _IONBF, 0);              // Windows has no line buffering; keep the log live
+    const char *home = getenv("USERPROFILE");
+#else
     setvbuf(stdout, NULL, _IOLBF, 0);
     const char *home = getenv("HOME");
+#endif
+    if (!home) home = ".";
     char path[1024], cmdpath[1024], viewpath[1024];
     // --dir DIR: where model.bin/cmd/view live (default ~/.vr-model-viewer, FreeCAD's);
     // --parent-pid PID: close when that process ends (default: when FreeCAD ends)
@@ -291,18 +422,7 @@ int main(int argc, char **argv) {
     snprintf(cmdpath, sizeof cmdpath, "%s/cmd", dir);
     snprintf(viewpath, sizeof viewpath, "%s/view", dir);
 
-    // EGL / GL context (surfaceless)
-    EGLDisplay dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    if (!eglInitialize(dpy, NULL, NULL)) { fprintf(stderr, "eglInitialize failed\n"); return 1; }
-    eglBindAPI(EGL_OPENGL_API);
-    EGLint cattr[] = {EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_SURFACE_TYPE, EGL_PBUFFER_BIT, EGL_NONE};
-    EGLConfig cfg; EGLint ncfg;
-    if (!eglChooseConfig(dpy, cattr, &cfg, 1, &ncfg) || !ncfg) { fprintf(stderr, "no EGL config\n"); return 1; }
-    EGLint ctxattr[] = {EGL_CONTEXT_MAJOR_VERSION, 4, EGL_CONTEXT_MINOR_VERSION, 3,
-                        EGL_CONTEXT_OPENGL_PROFILE_MASK, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT, EGL_NONE};
-    EGLContext ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, ctxattr);
-    if (!ctx) { fprintf(stderr, "eglCreateContext failed 0x%x\n", eglGetError()); return 1; }
-    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx);
+    if (!gl_init()) return 1;
     printf("GL: %s\n", glGetString(GL_RENDERER));
 
     // OpenVR as an overlay app: the desktop / current scene app keeps running
@@ -313,14 +433,23 @@ int main(int argc, char **argv) {
     struct VR_IVROverlay_FnTable *ov = (void *)VR_GetGenericInterface("FnTable:IVROverlay_027", &err);
     if (!sys || !ov) { fprintf(stderr, "OpenVR interfaces missing: %d\n", err); return 1; }
     VROverlayHandle_t oh;
-    char key[64]; snprintf(key, sizeof key, "fcvr.model.%d", (int)getpid());   // several viewers can run at once
+    char key[64]; snprintf(key, sizeof key, "fcvr.model.%d", my_pid());   // several viewers can run at once
     EVROverlayError oe = ov->CreateOverlay(key, "CAD model", &oh);
     if (oe) { fprintf(stderr, "CreateOverlay: %s\n", ov->GetOverlayErrorNameFromEnum(oe)); return 1; }
     ov->SetOverlayFlag(oh, VROverlayFlags_SideBySide_Parallel, 1);
 
     // controller input through SteamVR Input (works for overlay apps)
     struct VR_IVRInput_FnTable *in = (void *)VR_GetGenericInterface("FnTable:IVRInput_010", &err);
-    char manifest[1100]; snprintf(manifest, sizeof manifest, "%s/fcvr/actions.json", home);
+    char manifest[1100];
+#ifdef _WIN32
+    {   // actions.json sits next to fcvr.exe (SteamVR wants an absolute path)
+        char exe[MAX_PATH]; DWORD l = GetModuleFileNameA(NULL, exe, MAX_PATH); char *sl = l ? strrchr(exe, '\\') : NULL;
+        if (sl) *sl = 0;
+        snprintf(manifest, sizeof manifest, "%s\\actions.json", exe);
+    }
+#else
+    snprintf(manifest, sizeof manifest, "%s/fcvr/actions.json", home);
+#endif
     VRActionSetHandle_t aset = 0; VRActionHandle_t a_grip[2] = {0}, a_stick[2] = {0}, a_pose[2] = {0};
     if (in && !in->SetActionManifestPath(manifest)) {
         in->GetActionSetHandle("/actions/main", &aset);
@@ -385,7 +514,7 @@ int main(int argc, char **argv) {
         if (started == 0) started = t0;
         if (t0 - last_fc_check > 2.0) {
             last_fc_check = t0;
-            int alive = parent ? kill(parent, 0) == 0 : freecad_running();
+            int alive = parent ? pid_alive(parent) : freecad_running();
             fc_missing = alive ? 0 : fc_missing + 1;
             if (fc_missing >= 2 && t0 - started > 5) { printf("%s is closed; exiting\n", parent ? "parent" : "FreeCAD"); break; }
         }
@@ -396,7 +525,7 @@ int main(int argc, char **argv) {
 
         // hotkey commands: FreeCAD appends "<seq> <command> [args]" lines to cmd; read the new ones
         {
-            FILE *cf = fopen(cmdpath, "r");
+            FILE *cf = fopen(cmdpath, "rb");   // binary: offsets stay byte offsets with Windows line ends
             if (cf) {
                 fseek(cf, 0, SEEK_END); long end = ftell(cf);
                 if (cmd_off < 0 || end < cmd_off) cmd_off = cmd_off < 0 ? end : 0;   // skip old commands; follow truncation
@@ -434,7 +563,7 @@ int main(int argc, char **argv) {
             if (!stat(path, &st) && (st.st_mtime != last_mtime || st.st_size != last_size)) {
                 if (load_model(path)) { last_mtime = st.st_mtime; last_size = st.st_size; }
             }
-            FILE *vf = fopen(viewpath, "r"); char line[128];
+            FILE *vf = fopen(viewpath, "rb"); char line[128];
             if (vf) {
                 if (fgets(line, sizeof line, vf) && strcmp(line, last_view)) {
                     Q q; if (sscanf(line, "%f %f %f %f", &q.x, &q.y, &q.z, &q.w) == 4) { cam = q; strcpy(last_view, line); }
@@ -452,7 +581,7 @@ int main(int argc, char **argv) {
         float predict = 2.0f / hz - since_vsync + (to_photons > 0 && to_photons < 0.05f ? to_photons : 0.01f);
         TrackedDevicePose_t poses[1];
         sys->GetDeviceToAbsoluteTrackingPose(ETrackingUniverseOrigin_TrackingUniverseStanding, predict, poses, 1);
-        if (!poses[0].bPoseIsValid) { usleep(20000); continue; }
+        if (!poses[0].bPoseIsValid) { sleep_us(20000); continue; }
         HmdMatrix34_t H = poses[0].mDeviceToAbsoluteTracking;
         V3 head = m34_pos(H);
         V3 eyes[2];
@@ -513,7 +642,7 @@ int main(int argc, char **argv) {
         if (follow) // turn the model like the FreeCAD view: the user's facing direction is FreeCAD's camera
             mrot = qmul(qmul(qaxis(v3(0, 1, 0), user_yaw), qinv(cam)), zup_to_yup_inv);
 
-        if (!have_model) { if (shown) { ov->HideOverlay(oh); shown = 0; } usleep(50000); continue; }
+        if (!have_model) { if (shown) { ov->HideOverlay(oh); shown = 0; } sleep_us(50000); continue; }
 
         // Sheet: a plane at the model's depth facing you, covering (model outline) ∩ (field of view).
         // It is kept still while it still covers what is needed, so it doesn't swim as your head moves.
@@ -544,7 +673,7 @@ int main(int argc, char **argv) {
         }
         if (x1 <= x0 || y1 <= y0) {                           // model is out of view
             if (shown) { ov->HideOverlay(oh); shown = 0; }
-            usleep(11000); continue;
+            sleep_us(11000); continue;
         }
         float need = fmaxf(x1 - x0, y1 - y0);
         V3 need_c = vadd(P0, vadd(vmul(Rt, (x0 + x1) / 2), vmul(Ut, (y0 + y1) / 2)));
@@ -632,7 +761,7 @@ int main(int argc, char **argv) {
 
         if (ov->WaitFrameSync(100)) {                  // pace on the compositor; a timer if that fails
             double spent = now_s() - t0, frame = 1.0 / hz;
-            if (spent < frame) usleep((useconds_t)((frame - spent) * 1e6));
+            if (spent < frame) sleep_us((frame - spent) * 1e6);
         }
     }
     printf("exiting\n");

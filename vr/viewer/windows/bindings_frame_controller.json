@@ -1,0 +1,19 @@
+{
+  "controller_type": "frame_controller",
+  "name": "FreeCAD model viewer",
+  "description": "Grip grabs the model, both grips scale, grip + thumbstick scales",
+  "bindings": {
+    "/actions/main": {
+      "sources": [
+        {"path": "/user/hand/left/input/grip", "mode": "trigger", "inputs": {"click": {"output": "/actions/main/in/grip_left"}}},
+        {"path": "/user/hand/right/input/grip", "mode": "trigger", "inputs": {"click": {"output": "/actions/main/in/grip_right"}}},
+        {"path": "/user/hand/left/input/thumbstick", "mode": "joystick", "inputs": {"position": {"output": "/actions/main/in/stick_left"}}},
+        {"path": "/user/hand/right/input/thumbstick", "mode": "joystick", "inputs": {"position": {"output": "/actions/main/in/stick_right"}}}
+      ],
+      "poses": [
+        {"output": "/actions/main/in/pose_left", "path": "/user/hand/left/pose/raw"},
+        {"output": "/actions/main/in/pose_right", "path": "/user/hand/right/pose/raw"}
+      ]
+    }
+  }
+}

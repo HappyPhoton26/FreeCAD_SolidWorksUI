@@ -1,8 +1,8 @@
 # Install the SolidWorks Style workbench for FreeCAD 1.0 (Windows).
 #   install.bat                  workbench
 #   install.bat -MySettings      also restore the exact FreeCAD settings saved in my_settings\ (close FreeCAD first)
-# The VR viewer is Linux-only for now, so it isn't installed here.
-param([switch]$MySettings)
+#   install.bat -NoVR            skip the VR viewer (Show in VR button; needs SteamVR, e.g. a Steam Frame over Steam Link)
+param([switch]$MySettings, [switch]$NoVR)
 $ErrorActionPreference = "Stop"
 $W = Split-Path -Parent $MyInvocation.MyCommand.Path
 
@@ -42,6 +42,23 @@ if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
 Copy-Item -Recurse (Join-Path $W "SolidStyle") $dest
 Get-ChildItem -Path $dest -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
 Write-Host "Installed the SolidWorks Style workbench in $dest"
+
+# VR viewer: fcvr.exe + the FreeCAD add-on that feeds it and adds the Show in VR button
+if (-not $NoVR) {
+    $vrDir = Join-Path $env:LOCALAPPDATA "fcvr"
+    Get-Process -Name "fcvr" -ErrorAction SilentlyContinue | Stop-Process -Force
+    New-Item -ItemType Directory -Force -Path $vrDir | Out-Null
+    Copy-Item -Force (Join-Path $W "vr\viewer\windows\*") $vrDir -Exclude "*.lib"
+    $addon = Join-Path $mod "VRLiveExport"
+    if (Test-Path $addon) { Remove-Item -Recurse -Force $addon }
+    Copy-Item -Recurse (Join-Path $W "vr\freecad_addon") $addon
+    Get-ChildItem -Path $addon -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
+    Write-Host "Installed the VR viewer in $vrDir and its FreeCAD add-on in $addon"
+    $steam = @("${env:ProgramFiles(x86)}\Steam\steamapps\common\SteamVR", "$env:ProgramFiles\Steam\steamapps\common\SteamVR")
+    if (-not ($steam | Where-Object { Test-Path $_ })) {
+        Write-Host "  (SteamVR wasn't found in the usual place; install it from Steam to use Show in VR)"
+    }
+}
 
 if ($MySettings) {
     if (Get-Process -Name "FreeCAD*" -ErrorAction SilentlyContinue) {

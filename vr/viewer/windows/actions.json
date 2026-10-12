@@ -1,0 +1,24 @@
+{
+  "default_bindings": [
+    {"controller_type": "frame_controller", "binding_url": "bindings_frame_controller.json"}
+  ],
+  "action_sets": [{"name": "/actions/main", "usage": "leftright"}],
+  "actions": [
+    {"name": "/actions/main/in/grip_left", "type": "boolean"},
+    {"name": "/actions/main/in/grip_right", "type": "boolean"},
+    {"name": "/actions/main/in/stick_left", "type": "vector2"},
+    {"name": "/actions/main/in/stick_right", "type": "vector2"},
+    {"name": "/actions/main/in/pose_left", "type": "pose"},
+    {"name": "/actions/main/in/pose_right", "type": "pose"}
+  ],
+  "localization": [{
+    "language_tag": "en_US",
+    "/actions/main": "FreeCAD model",
+    "/actions/main/in/grip_left": "Grab / scale (left)",
+    "/actions/main/in/grip_right": "Grab / scale (right)",
+    "/actions/main/in/stick_left": "Scale while gripping (left)",
+    "/actions/main/in/stick_right": "Scale while gripping (right)",
+    "/actions/main/in/pose_left": "Left hand",
+    "/actions/main/in/pose_right": "Right hand"
+  }]
+}
