@@ -7,7 +7,8 @@ u32 vertex count, u32 triangle count, u32 line vertex count;
 f32 xyz * vertices; u32 abc * triangles; f32 xyz * line vertices (pairs = segments).
 Vertices are not shared between faces, so normals smoothed per vertex stay sharp at face boundaries.
 Coordinates are FreeCAD world millimetres (Z up).
-Also writes ~/.vr-model-viewer/view ("x y z w" camera rotation of the active 3D view) while it changes."""
+Also writes ~/.vr-model-viewer/view while it changes: the active 3D view's camera rotation "x y z w", focal point
+(mm) and visible height (mm), so the VR model rotates, zooms and pans with the FreeCAD view."""
 import os
 import struct
 import time
@@ -309,7 +310,7 @@ HELP_HTML = """<h3>VR model hotkeys</h3>
 <tr><td><b>Ctrl+Shift+Alt+Up</b> / <b>Down</b></td><td>tilt</td></tr>
 <tr><td><b>Ctrl+Shift+Alt+PgUp</b> / <b>PgDn</b></td><td>roll</td></tr>
 <tr><td><b>Ctrl+Alt+U</b></td><td>stand it upright</td></tr>
-<tr><td><b>Ctrl+Alt+4</b></td><td>turn with the FreeCAD view on / off (on at start)</td></tr>
+<tr><td><b>Ctrl+Alt+4</b></td><td>follow the FreeCAD view (rotate, zoom, pan) on / off (on at start)</td></tr>
 </table>"""
 
 
@@ -402,20 +403,39 @@ def send(cmd):
 VIEW = os.path.join(os.path.dirname(OUT), "view")
 
 
+def _camera():
+    """(rotation quaternion, focal point in mm, visible view height in mm) of the active 3D view.
+    The VR viewer mirrors these, so rotating, zooming and panning in FreeCAD do the same to the VR model."""
+    import math
+    import FreeCADGui as Gui
+    view = Gui.ActiveDocument.ActiveView
+    rot = view.getCameraOrientation()
+    cam = view.getCameraNode()
+    pos = App.Vector(*cam.position.getValue().getValue())
+    fd = cam.focalDistance.getValue()
+    focal = pos + rot.multVec(App.Vector(0, 0, -1)) * fd
+    if hasattr(cam, "heightAngle"):                    # perspective
+        h = 2 * fd * math.tan(cam.heightAngle.getValue() / 2)
+    else:                                              # orthographic
+        h = cam.height.getValue()
+    return tuple(rot.Q), focal, h
+
+
 def _write_view():
-    """Publish the active 3D view's camera rotation so the VR model can turn with it."""
+    """Publish the active 3D view's camera: "qx qy qz qw  fx fy fz  height" (older viewers read the first four)."""
     try:
-        import FreeCADGui as Gui
-        q = Gui.ActiveDocument.ActiveView.getCameraOrientation().Q
+        q, f, h = _camera()
     except Exception:
         return
-    txt = "%.5f %.5f %.5f %.5f\n" % tuple(q)
+    if not h > 0:
+        return
+    txt = "%.5f %.5f %.5f %.5f %.4f %.4f %.4f %.5g\n" % (q + (f.x, f.y, f.z, h))
     if txt == _state.get("view_txt"):
         return
     _state["view_txt"] = txt
     tmp = VIEW + ".tmp"
-    with open(tmp, "w") as f:
-        f.write(txt)
+    with open(tmp, "w") as fh:
+        fh.write(txt)
     try:
         _replace(tmp, VIEW)
     except OSError:

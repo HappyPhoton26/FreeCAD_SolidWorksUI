@@ -8,7 +8,9 @@
 // Input files in ~/.vr-model-viewer (written by FreeCAD's VRLiveExport add-on), or in --dir DIR
 // (optiland_ui's VR view writes the same files there and passes --parent-pid):
 //   model.bin  the visible shapes (reloaded when it changes, format in vr_live_export.py)
-//   view       FreeCAD camera rotation; in follow mode the model turns with the FreeCAD view
+//   view       FreeCAD camera "qx qy qz qw [fx fy fz h]": rotation, and (FreeCAD only) the view's focal point and
+//              visible height in mm. In follow mode the model turns with the view, and with the focal point and
+//              height it also zooms and pans with it (the view centre stays put in VR, the height sets the size).
 //   cmd        "<seq> <command>" from the FreeCAD hotkeys:
 //              real (1:1), big (~1.2 m), fit (~35 cm), bigger, smaller, recenter, follow (toggle),
 //              scale <n> (n x real size), zoom <f> (multiply the size by f)
@@ -503,7 +505,9 @@ int main(int argc, char **argv) {
     V3 mpos = v3(0, 1.2f, -0.6f); Q mrot = {0, 0, 0, 1}; float mscale = 1, user_yaw = 0;
     int placed = 0, follow = 1, shown = 0;
     long cmd_off = -1; time_t last_mtime = 0; long last_size = -1; double last_poll = 0;
-    Q cam = {0, 0, 0, 1}; char last_view[128] = "";
+    Q cam = {0, 0, 0, 1}; char last_view[160] = "";
+    V3 camF = {0}; float camH = 0; int have_cam = 0;              // view focal point (metres, Y-up) and height (mm)
+    V3 pF = {0}, pC = {0}; float pH = 0; int prev_ok = 0;         // the same last frame, and the model centre then
     const Q zup_to_yup_inv = qaxis(v3(1, 0, 0), (float)M_PI / 2);   // undo the loader's Z-up -> Y-up turn
 
     printf("overlay running; watching %s\n", path);
@@ -563,10 +567,14 @@ int main(int argc, char **argv) {
             if (!stat(path, &st) && (st.st_mtime != last_mtime || st.st_size != last_size)) {
                 if (load_model(path)) { last_mtime = st.st_mtime; last_size = st.st_size; }
             }
-            FILE *vf = fopen(viewpath, "rb"); char line[128];
+            FILE *vf = fopen(viewpath, "rb"); char line[160];
             if (vf) {
                 if (fgets(line, sizeof line, vf) && strcmp(line, last_view)) {
-                    Q q; if (sscanf(line, "%f %f %f %f", &q.x, &q.y, &q.z, &q.w) == 4) { cam = q; strcpy(last_view, line); }
+                    Q q; float fx, fy, fz, h;
+                    int got = sscanf(line, "%f %f %f %f %f %f %f %f", &q.x, &q.y, &q.z, &q.w, &fx, &fy, &fz, &h);
+                    if (got >= 4) { cam = q; strcpy(last_view, line); }
+                    have_cam = got == 8 && h > 0;
+                    if (have_cam) { camF = v3(fx * 0.001f, fz * 0.001f, -fy * 0.001f); camH = h; }   // like the loader's CONV
                 }
                 fclose(vf);
             }
@@ -639,8 +647,19 @@ int main(int argc, char **argv) {
             }
         }
 
-        if (follow) // turn the model like the FreeCAD view: the user's facing direction is FreeCAD's camera
-            mrot = qmul(qmul(qaxis(v3(0, 1, 0), user_yaw), qinv(cam)), zup_to_yup_inv);
+        if (follow) { // turn the model like the FreeCAD view: the user's facing direction is FreeCAD's camera
+            Q nrot = qmul(qmul(qaxis(v3(0, 1, 0), user_yaw), qinv(cam)), zup_to_yup_inv);
+            if (have_cam && have_model && placed && prev_ok) {
+                // mirror the camera: the point at the centre of the FreeCAD view stays where it is in VR,
+                // the model turns about it, and the visible height sets the size (zoom in = bigger).
+                // Done relative to last frame, so grabbing / scaling with the controllers still adds on top.
+                V3 A = vadd(mpos, qrot(mrot, vmul(vsub(pF, pC), mscale)));
+                mscale = mscale * pH / camH;
+                mpos = vadd(A, qrot(nrot, vmul(vsub(m_center, camF), mscale)));
+            }
+            mrot = nrot;
+        }
+        if (have_cam && have_model) { pF = camF; pH = camH; pC = m_center; prev_ok = placed; }
 
         if (!have_model) { if (shown) { ov->HideOverlay(oh); shown = 0; } sleep_us(50000); continue; }
 
@@ -757,7 +776,7 @@ int main(int argc, char **argv) {
         ov->SetOverlayWidthInMeters(oh, sheet);
         if (oe) { static int once; if (!once++) fprintf(stderr, "SetOverlayTexture: %s\n", ov->GetOverlayErrorNameFromEnum(oe)); }
         if (!shown) { ov->ShowOverlay(oh); shown = 1; }
-        if (getenv("FCVR_DEBUG_TIME")) { static int frame_no; if (++frame_no % 90 == 0) { static double last; double t = now_s(); printf("frame %.1f ms, %.1f fps, sheet %.2f m, n %d, k %.2f\n", (t - t0) * 1000, 90 / (t - last), sheet, n, k); last = t; } }
+        if (getenv("FCVR_DEBUG_TIME")) { static int frame_no; if (++frame_no % 90 == 0) { static double last; double t = now_s(); printf("frame %.1f ms, %.1f fps, sheet %.2f m, n %d, k %.2f, scale %.3f, pos %.3f %.3f %.3f\n", (t - t0) * 1000, 90 / (t - last), sheet, n, k, mscale, mpos.x, mpos.y, mpos.z); last = t; } }
 
         if (ov->WaitFrameSync(100)) {                  // pace on the compositor; a timer if that fails
             double spent = now_s() - t0, frame = 1.0 / hz;

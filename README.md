@@ -117,7 +117,9 @@ On Linux the installer builds the viewer, which needs `gcc`.
    ![Show in VR button](docs/images/vr-button.png)
 
 3. The part you're editing floats in front of you at **real size**, and updates live while you keep working on
-   the desktop. It turns when you turn the FreeCAD view.
+   the desktop. It **follows the FreeCAD view**: rotate, zoom or pan in FreeCAD and the VR model rotates, grows or
+   shrinks, and moves the same way (the point in the middle of the FreeCAD view stays put in VR).
+   **Ctrl+Alt+4** switches this off and on.
 4. Controllers: **grip** grabs and moves it, **both grips** stretch to scale it, **grip + thumbstick** scales it.
 5. **VR keys** (next to the button) shows the keyboard shortcuts:
 
@@ -134,7 +136,7 @@ On Linux the installer builds the viewer, which needs `gcc`.
 | Ctrl+Shift+Alt+Arrows | Turn / tilt (5° per press) |
 | Ctrl+Shift+Alt+PgUp / PgDn | Roll |
 | Ctrl+Alt+U | Stand it upright |
-| Ctrl+Alt+4 | Turn with the FreeCAD view on / off |
+| Ctrl+Alt+4 | Follow the FreeCAD view (rotate, zoom, pan) on / off |
 
 **If nothing shows up in VR:** check SteamVR is running *before* you click Show in VR, then click it twice
 (off and on). The viewer writes a log: on Windows `%LOCALAPPDATA%\fcvr\fcvr.log`, on Linux `~/fcvr/fcvr.log`.
