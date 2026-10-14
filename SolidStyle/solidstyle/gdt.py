@@ -320,14 +320,25 @@ def add_fcf_to_edge(view, edge, char, tol, dia=False, mod="", datums=(), along=0
     return sym
 
 
-def add_fcf_under_dimension(dim, char, tol, dia=False, mod="", datums=()):
-    """Frame placed directly under a dimension's text (e.g. position under a hole callout)."""
+def add_fcf_under_dimension(dim, char, tol, dia=False, mod="", datums=(), below=4.5):
+    """Frame placed directly under a dimension's text (e.g. position under a hole callout).
+    below: gap under the text centre in mm - more for steeply angled dimensions."""
     view = dim.References2D[0][0]
     vx, vy = drawing.view_center(view)
     svg, w, h = fcf_svg(char, tol, dia, mod, datums)
     x = vx + dim.X.Value + w / 2 - 6
-    y = vy + dim.Y.Value - 4.5 - h / 2
+    y = vy + dim.Y.Value - below - h / 2
     return add_symbol(drawing.page_of(view), svg, x, y, "%s %s" % (NAMES.get(char, char), tol))
+
+
+def make_basic(dim, fmt=None):
+    """Basic (theoretically exact, boxed) dimension: no tolerance, .XXX by default."""
+    dim.TheoreticalExact = True
+    dim.EqualTolerance = True
+    dim.OverTolerance = 0
+    if fmt or "%.2f" in dim.FormatSpec:
+        dim.FormatSpec = fmt or dim.FormatSpec.replace("%.2f", "%.3f")
+    return dim
 
 
 def used_datums(page):

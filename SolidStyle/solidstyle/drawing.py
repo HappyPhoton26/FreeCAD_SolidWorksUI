@@ -1,4 +1,4 @@
-"""SolidWorks-style drawings on top of TechDraw (ANSI sheets, decimal inches).
+﻿"""SolidWorks-style drawings on top of TechDraw (ANSI sheets, decimal inches).
 
   * Make Drawing from Part - picks an ANSI sheet and a standard scale, places the
     Front / Top / Right views (third angle) and an isometric view, fills the title block;
@@ -22,7 +22,15 @@ from solidstyle.commands import icon
 
 PARAMS = "User parameter:BaseApp/Preferences/Mod/SolidStyle"
 INCH = "Imperial decimal (in, lb)"
-FMT = "%.3f"
+FMT = "%.3f"     # .XXX - holes and other precise sizes
+FMT2 = "%.2f"    # .XX  - overall sizes and radii (general tolerance ±.01)
+GENERAL_NOTES = [
+    "NOTES:",
+    "1. DIMENSIONING AND TOLERANCING PER ASME Y14.5-2018.",
+    "2. DIMENSIONS ARE IN INCHES.",
+    "3. UNLESS OTHERWISE SPECIFIED:  .XX ±.01   .XXX ±.005   ANGLES ±0.5°",
+    "4. BREAK SHARP EDGES .005-.015.",
+]
 GAP = 22.0      # space between views, mm on the page
 MARGIN = 20.0   # the ASME sheets have their inner border about 20 mm in
 DIM_ROOM = 16.0 # left of the Front/Top views and right of the Right view: dimensions, datums
@@ -72,7 +80,7 @@ def scale_text(s):
 
 
 def inch(mm):
-    return "%.3f" % (mm / 25.4)
+    return _ansi(mm / 25.4)
 
 
 def part_to_draw():
@@ -218,7 +226,7 @@ def choose_layout(shape, size=None):
     return best or (sheets[-1], SCALES[-1])
 
 
-def make_drawing(part, size=None, scale=None, title=None):
+def make_drawing(part, size=None, scale=None, title=None, gap=GAP, notes=True):
     doc = part.Document
     doc.UnitSystem = INCH
     sheet, auto_scale = choose_layout(part.Shape, size)
@@ -238,8 +246,8 @@ def make_drawing(part, size=None, scale=None, title=None):
     bb = part.Shape.BoundBox
     X, Y, Z = bb.XLength * s, bb.YLength * s, bb.ZLength * s
     iw, ih = [d * s for d in _extent(part.Shape, ISO_DIR, ISO_X)]
-    bottom, top = tbh + GAP / 2, H - MARGIN
-    gw, gh = X + GAP + Y, Z + GAP + Y
+    bottom, top = tbh + gap / 2, H - MARGIN
+    gw, gh = X + gap + Y, Z + gap + Y
     # left to right: dimension room, Front, gap, Right, dimension room, isometric (right-aligned)
     free_w = max((W - 2 * MARGIN) - 2 * DIM_ROOM - gw - iw, 0)
     left = MARGIN + DIM_ROOM + free_w / 3
@@ -250,8 +258,8 @@ def make_drawing(part, size=None, scale=None, title=None):
     # group made from Python is drawn at the page origin by FreeCAD 1.1).
     for role, direction, xdir, x, y in (
             ("Front", App.Vector(0, -1, 0), App.Vector(1, 0, 0), gx, gy),
-            ("Top", App.Vector(0, 0, 1), App.Vector(1, 0, 0), gx, gy + Z / 2 + GAP + Y / 2),
-            ("Right", App.Vector(1, 0, 0), App.Vector(0, 1, 0), gx + X / 2 + GAP + Y / 2, gy)):
+            ("Top", App.Vector(0, 0, 1), App.Vector(1, 0, 0), gx, gy + Z / 2 + gap + Y / 2),
+            ("Right", App.Vector(1, 0, 0), App.Vector(0, 1, 0), gx + X / 2 + gap + Y / 2, gy)):
         v = doc.addObject("TechDraw::DrawViewPart", role)
         v.addProperty("App::PropertyString", "ViewRole", "SolidStyle", "Front, Top, Right or Isometric")
         v.ViewRole = role
@@ -276,10 +284,12 @@ def make_drawing(part, size=None, scale=None, title=None):
     iso.ViewRole = "Isometric"
     page.addView(iso)
     iso.X = W - MARGIN - iw / 2 - free_w / 3
-    iso.Y = min(max(gy + Z / 2 + GAP / 2, bottom + ih / 2), top - ih / 2)
+    iso.Y = min(max(gy + Z / 2 + gap / 2, bottom + ih / 2), top - ih / 2)
 
     doc.recompute()
     fill_title_block(page, part, reset=True, title=title)
+    if notes:
+        add_notes(page)
     doc.recompute()
     return page
 
@@ -408,6 +418,82 @@ def _add_dim(view, kind, refs, x, y, fmt=FMT):
     return dim
 
 
+def add_dimension(view, kind, refs, x, y, fmt=FMT):
+    """Dimension between edges/vertices of a view ("Edge3", "Vertex7"); x, y: text position
+    relative to the view centre, page mm, Y up."""
+    return _add_dim(view, kind, refs, x, y, fmt)
+
+
+def _ansi(v):
+    """.002, 1.250 - inch values below one without the leading zero (ASME Y14.5)."""
+    t = "%.3f" % v
+    return t[1:] if t.startswith("0.") else t
+
+
+def set_tolerance(dim, plus, minus=None):
+    """Size tolerance in inches: ±plus, or +plus/-minus.
+    ±tolerances are written right after the size (so a hole callout reads ⌀.500 ±.002 ↧.750)."""
+    import re
+    if minus is None or abs(minus - plus) < 1e-9:
+        dim.FormatSpec = re.sub(r"%[-+ #0]*\d*(?:\.\d+)?[fgw]",
+                                lambda m: m.group(0) + " ±" + _ansi(plus), dim.FormatSpec, count=1)
+    else:
+        dim.EqualTolerance = False
+        dim.FormatSpecOverTolerance = "%+.3f"
+        dim.FormatSpecUnderTolerance = "%+.3f"
+        dim.OverTolerance = plus * 25.4
+        dim.UnderTolerance = -minus * 25.4
+
+
+def view_vertices(view):
+    """[(name, point)] for every vertex of a view, page mm about the view centre, Y up.
+    Circle centres are included."""
+    s = view_scale(view)
+    out = []
+    i = 0
+    while True:
+        try:
+            v = view.getVertexByIndex(i)
+        except Exception:
+            break
+        if v is None:
+            break
+        out.append(("Vertex%d" % i, App.Vector(v.Point.x * s, v.Point.y * s, 0)))
+        i += 1
+    return out
+
+
+def vertex_at(view, x, y, tol=0.05):
+    """Name of the vertex at (x, y) - page mm about the view centre - or None."""
+    best = None
+    for name, p in view_vertices(view):
+        d = math.hypot(p.x - x, p.y - y)
+        if d <= tol and (best is None or d < best[1]):
+            best = (name, d)
+    return best[0] if best else None
+
+
+def add_notes(page, lines=None):
+    """General notes (standard tolerances etc.) in the empty corner left of the title block."""
+    lines = lines or GENERAL_NOTES
+    tpl = page.Template
+    W = tpl.Width.Value
+    sheet = next((s for s in SHEETS if abs(s[2] - W) < 1), SHEETS[0])
+    room = sheet[4] - MARGIN - 10
+    size = min(3.5, room / (max(len(t) for t in lines) * 0.62))
+    note = page.Document.addObject("TechDraw::DrawViewAnnotation", "Notes")
+    note.Label = "General Notes"
+    note.Text = lines
+    note.TextSize = size
+    note.Font = "osifont"
+    page.addView(note)
+    width = max(len(t) for t in lines) * size * 0.62
+    height = len(lines) * size * 2.3   # osifont line pitch
+    note.X = MARGIN + 6 + width / 2
+    note.Y = MARGIN + 6 + height / 2
+    return note
+
+
 def view_circles(view):
     """[(edge name, edge, full)] - one entry per circle seen in a view. TechDraw often splits
     a circle into arcs; arcs of the same circle are merged (the longest piece is named)."""
@@ -498,7 +584,7 @@ def auto_dimension(page):
                 dim = _add_dim(v, "Diameter", [name], max(c.x + r, right_edge) + 14, c.y + r * 0.4 + 4,
                                hole_text(v, e))
             else:      # radii down and to the right, so they don't meet the diameters
-                dim = _add_dim(v, "Radius", [name], c.x + r * 0.75 + 6, c.y - r * 0.75 - 6, "R" + FMT)
+                dim = _add_dim(v, "Radius", [name], c.x + r * 0.75 + 14, c.y - r * 0.75 - 14, "R" + FMT2)
             made.append(dim)
     page.Document.recompute()
     return made
@@ -523,7 +609,7 @@ def _overall(view, horizontal, vertical, right=False):
         TechDraw.makeExtentDim(view, [], direction)
         for d in doc.Objects:
             if d.Name not in before and d.isDerivedFrom("TechDraw::DrawViewDimension"):
-                d.FormatSpec = FMT
+                d.FormatSpec = FMT2
                 d.X = x
                 d.Y = y
                 out.append(d)
@@ -592,7 +678,7 @@ class MakeDrawing(commands._Cmd):
         if not dlg.exec_():
             return
         App.ActiveDocument.openTransaction("Make Drawing")
-        page = make_drawing(part, dlg.size(), dlg.scale(), dlg.title.text())
+        page = make_drawing(part, dlg.size(), dlg.scale(), dlg.title.text(), notes=dlg.notes.isChecked())
         if dlg.dims.isChecked():
             auto_dimension(page)
         App.ActiveDocument.commitTransaction()
@@ -623,6 +709,9 @@ class MakeDrawingDialog(QtWidgets.QDialog):
         self.dims = QtWidgets.QCheckBox("Auto dimension (overall sizes, holes and radii)")
         self.dims.setChecked(True)
         lay.addRow(self.dims)
+        self.notes = QtWidgets.QCheckBox("General notes (ASME Y14.5, .XX ±.01, .XXX ±.005, angles ±0.5°)")
+        self.notes.setChecked(True)
+        lay.addRow(self.notes)
         bb = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
         bb.accepted.connect(self.accept)
         bb.rejected.connect(self.reject)
