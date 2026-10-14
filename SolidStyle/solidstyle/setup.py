@@ -7,7 +7,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtCore, QtWidgets
 
-from solidstyle import assembly, catalog, commands, features, look, shortcuts
+from solidstyle import assembly, catalog, commands, drawing, features, gdt, look, shortcuts
 
 WB = "SolidStyleWorkbench"
 PARAMS = "User parameter:BaseApp/Preferences/Mod/SolidStyle"
@@ -56,6 +56,8 @@ def initialize(wb):
     commands.register()
     features.register()
     assembly.register()
+    drawing.register()
+    gdt.register()
     known = set(Gui.listCommands())
 
     def ok(cmds):
@@ -72,7 +74,7 @@ def initialize(wb):
                   ok([v[0] for v in commands.VIEWS] + ["SS_NormalTo", "SS_ZoomFit"]))
     wb.appendMenu("&Tools", ok(["SS_Rebuild", "SS_ShortcutBar", "SS_MassProperties", "Std_Measure",
                                 "Separator", "SS_ApplyLook", "SS_RestoreLook"]))
-    wb.appendMenu("&File", ok(["SS_NewPart", "SS_NewAssembly", "SS_NewDrawing"]))
+    wb.appendMenu("&File", ok(["SS_NewPart", "SS_NewAssembly", "SS_NewDrawing", "SS_MakeDrawing"]))
 
     global _timer, _observer
     _observer = DocObserver()
@@ -233,6 +235,11 @@ class DocObserver:
 
     def slotFinishRestoreDocument(self, doc):
         self.restoring.discard(doc.Name)
+
+    def slotRecomputedDocument(self, doc):
+        # drawing title blocks: keep scale and weight current
+        if any(o.isDerivedFrom("TechDraw::DrawPage") for o in doc.Objects):
+            drawing.update_title_blocks(doc)
 
     def slotCreatedObject(self, obj):
         if not _active:

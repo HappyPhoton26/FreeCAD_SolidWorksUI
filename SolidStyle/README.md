@@ -16,6 +16,9 @@ Pick **SolidWorks Style** in the workbench selector.
 - **SolidWorks naming**: Front/Top/Right Plane, Sketch1, Boss-Extrude1, Cut-Extrude1, Fillet1...
 - **Mass Properties** dialog with a material/density picker.
 - **New Part / New Assembly / New Drawing** (File menu and Quick Access toolbar).
+- **Drawings**: Make Drawing from Part (ANSI sheet, scale, 3 views + isometric, title block, inches),
+  Auto Dimension, Hole Callout, Save as PDF.
+- **GD&T** (ASME Y14.5): Geometric Tolerance (feature control frames), Datum Feature, Basic Dimension.
 - **Look & feel** (applied the first time): gradient background, grey parts with black edges,
   orange hover, blue selection, blue under-defined / black fully-defined sketches, middle-mouse rotate.
   *Tools > Restore My Settings* puts your previous settings back.

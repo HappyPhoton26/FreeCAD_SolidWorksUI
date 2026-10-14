@@ -89,6 +89,24 @@ like SolidWorks' (f). Then pick a face or edge on each of two parts.
 
 ![Assembly tab](docs/images/assembly-tab.png)
 
+### Drawings (ANSI, inches) and GD&T
+Select a part (or have a body active) and click **Make Drawing from Part** on the **Drawing** tab.
+It picks an ANSI sheet (A to E) and a standard scale that fit, places the Front, Top and Right views
+(third angle, hidden lines dashed) and an isometric view, fills in the title block and switches the
+document to decimal inches. Leave **Auto dimension** ticked to add the overall sizes, plus one diameter or
+radius per circle. Hole diameters are written as callouts like `2X ⌀.250 THRU` or `⌀.500 ↧.750`.
+
+![Drawing made with Make Drawing from Part](docs/images/drawing-example.png)
+
+| Tool | Does |
+|---|---|
+| Hole Callout | Pick circles in a view: count, diameter and THRU/depth from the model |
+| Geometric Tolerance | Feature control frame, all 14 ASME Y14.5 symbols, ⌀ zone, Ⓜ/Ⓛ, up to three datums. Select an edge first to attach it with a leader, or a dimension to put it under the dimension |
+| Datum Feature | Select an edge in a view: datum symbol with its triangle on the edge (next free letter suggested) |
+| Basic Dimension | Boxes the selected dimensions (theoretically exact) |
+| Title Block | Edit the fields. Scale and weight stay up to date (weight uses the density from Mass Properties) |
+| Save as PDF | The current sheet as a PDF |
+
 ### Shortcuts
 | Key | Does |
 |---|---|

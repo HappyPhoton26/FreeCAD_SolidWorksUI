@@ -146,8 +146,9 @@ ASSEMBLY = [
 ]
 
 DRAWING = [
-    ("drop", "New\nDrawing", [("TechDraw_PageDefault", "Default Sheet"),
-                              ("TechDraw_PageTemplate", "Sheet from Template...")]),
+    ("big", "SS_MakeDrawing", "Make Drawing\nfrom Part"),
+    ("drop", "New\nSheet", [("TechDraw_PageDefault", "Default Sheet"),
+                            ("TechDraw_PageTemplate", "Sheet from Template...")]),
     "|",
     ("big", "TechDraw_View", "Model\nView"),
     ("big", "TechDraw_ProjectionGroup", "Standard\n3 View"),
@@ -155,19 +156,27 @@ DRAWING = [
     ("big", "TechDraw_DetailView", "Detail\nView"),
     "|",
     ("big", "TechDraw_Dimension", "Smart\nDimension"),
+    ("big", "SS_AutoDimension", "Auto\nDimension"),
+    ("big", "SS_HoleCallout", "Hole\nCallout"),
     ("stack", [("TechDraw_HorizontalDimension", "Horizontal Dimension"),
                ("TechDraw_VerticalDimension", "Vertical Dimension"),
                ("TechDraw_AngleDimension", "Angle Dimension")]),
     ("stack", [("TechDraw_RadiusDimension", "Radius"),
                ("TechDraw_DiameterDimension", "Diameter"),
                ("TechDraw_Balloon", "Balloon")]),
-    ("stack", [("TechDraw_Annotation", "Note"),
+    "|",
+    ("big", "SS_GeometricTolerance", "Geometric\nTolerance"),
+    ("big", "SS_DatumFeature", "Datum\nFeature"),
+    ("stack", [("SS_BasicDimension", "Basic Dimension"),
                ("TechDraw_FaceCenterLine", "Centerline"),
                ("TechDraw_CosmeticVertex", "Center Mark")]),
+    ("stack", [("TechDraw_Annotation", "Note"),
+               ("SS_TitleBlock", "Title Block")]),
     "|",
-    ("drop", "Export", [("TechDraw_ExportPageSVG", "Export SVG"),
-                        ("TechDraw_ExportPageDXF", "Export DXF"),
-                        ("TechDraw_PrintAll", "Print / PDF")]),
+    ("drop", "Save as\nPDF", [("SS_SaveAsPDF", "Save as PDF"),
+                              ("TechDraw_ExportPageSVG", "Export SVG"),
+                              ("TechDraw_ExportPageDXF", "Export DXF"),
+                              ("TechDraw_PrintAll", "Print")]),
 ]
 
 TABS = [
