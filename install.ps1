@@ -17,7 +17,7 @@ foreach ($root in @($env:ProgramFiles, ${env:ProgramFiles(x86)}, "$env:LOCALAPPD
 }
 $onPath = Get-Command FreeCADCmd.exe -ErrorAction SilentlyContinue
 if ($onPath) { $cands = @($onPath.Source) + $cands }
-if ($cands.Count -gt 0) { $cmd = ($cands | Sort-Object -Descending)[0] }
+if ($cands.Count -gt 0) { $cmd = @($cands | Sort-Object -Descending)[0] }
 
 $data = $null
 if ($cmd) {
