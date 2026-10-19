@@ -462,7 +462,12 @@ class DepthDragger:
     def __init__(self, on_drag):
         self.on_drag = on_drag
         self.root = None
-        self.muted = False
+        self.last = None    # dragger x we placed or last reported
+        # Poll the dragger from Qt instead of addValueChangedCallback: pivy's dragger callback can
+        # segfault mid-drag (SoTranslate1Dragger::drag -> pivy -> _PyObject_New), killing FreeCAD.
+        self.poll = QtCore.QTimer()
+        self.poll.setInterval(33)
+        self.poll.timeout.connect(self._poll)
         try:
             from pivy import coin
             self.coin = coin
@@ -481,7 +486,6 @@ class DepthDragger:
             sep.addChild(mat)
             self.dragger = coin.SoTranslate1Dragger()
             sep.addChild(self.dragger)
-            self.dragger.addValueChangedCallback(self._moved, None)
             # depth call-out text
             self.label_sep = coin.SoSeparator()
             self.label_pos = coin.SoTranslation()
@@ -499,6 +503,7 @@ class DepthDragger:
             self.root = None
 
     def hide(self):
+        self.poll.stop()
         if self.root is not None:
             self.root.whichChild = -1
 
@@ -508,24 +513,32 @@ class DepthDragger:
         self.root.whichChild = 0
         c = self.coin
         self.scale = max(scale, 1e-3)
-        self.muted = True
-        try:
-            self.xf.translation.setValue(origin.x, origin.y, origin.z)
-            self.xf.rotation.setValue(c.SbRotation(c.SbVec3f(1, 0, 0), c.SbVec3f(direction.x, direction.y, direction.z)))
-            self.xf.scaleFactor.setValue(self.scale, self.scale, self.scale)
-            self.dragger.translation.setValue(length / self.scale, 0, 0)
-            self.label_pos.translation.setValue(length / self.scale + 1.5, 0.8, 0)
-            self.text.string.setValue(label)
-        finally:
-            self.muted = False
+        self.xf.translation.setValue(origin.x, origin.y, origin.z)
+        self.xf.rotation.setValue(c.SbRotation(c.SbVec3f(1, 0, 0), c.SbVec3f(direction.x, direction.y, direction.z)))
+        self.xf.scaleFactor.setValue(self.scale, self.scale, self.scale)
+        x = length / self.scale
+        if self.last is None or abs(self._x() - x) > 1e-6:
+            self.dragger.translation.setValue(x, 0, 0)
+        self.last = self._x()
+        self.label_pos.translation.setValue(x + 1.5, 0.8, 0)
+        self.text.string.setValue(label)
+        self.poll.start()
 
-    def _moved(self, _data, dragger):
-        if self.muted:
+    def _x(self):
+        return self.dragger.translation.getValue()[0]
+
+    def _poll(self):
+        if self.root is None:
             return
-        x = dragger.translation.getValue()[0]
+        x = self._x()
+        if self.last is None or abs(x - self.last) < 1e-9:
+            return
+        self.last = x
+        self.label_pos.translation.setValue(x + 1.5, 0.8, 0)
         self.on_drag(max(0.01, x * self.scale))
 
     def remove(self):
+        self.poll.stop()
         if self.root is not None:
             try:
                 Gui.ActiveDocument.ActiveView.getSceneGraph().removeChild(self.root)

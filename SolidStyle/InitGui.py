@@ -50,3 +50,26 @@ try:
     QtCore.QTimer.singleShot(3000, _give_back_shortcuts)  # after all workbenches registered commands
 except Exception:
     pass
+
+
+def _crash_log():
+    # Keep a crash report in <user data>/SolidStyle_crash.log: the Python stack at the crash (faulthandler)
+    # plus FreeCAD's own messages and native backtrace, which otherwise go to an unseen terminal.
+    import faulthandler
+    import time
+    path = os.path.join(App.getUserAppDataDir(), "SolidStyle_crash.log")
+    try:
+        if os.path.exists(path) and os.path.getsize(path) > 2000000:
+            os.replace(path, path + ".old")
+        f = open(path, "a", buffering=1)
+        f.write("\n=== FreeCAD started %s (pid %d) ===\n" % (time.ctime(), os.getpid()))
+        for fd in (1, 2):
+            if not os.isatty(fd):
+                os.dup2(f.fileno(), fd)
+        faulthandler.enable(f, all_threads=True)
+        globals()["_crash_file"] = f
+    except Exception as e:
+        App.Console.PrintWarning("SolidStyle: no crash log (%s)\n" % e)
+
+
+_crash_log()
