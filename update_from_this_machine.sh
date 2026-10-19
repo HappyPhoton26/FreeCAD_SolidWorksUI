@@ -4,12 +4,22 @@
 set -e
 W="$(cd "$(dirname "$0")" && pwd)"
 FC=~/.var/app/org.freecad.FreeCAD
-MOD=$FC/data/FreeCAD/Mod
+VER=v1-1                                    # FreeCAD 1.1 keeps its user files per version
+MOD=$FC/data/FreeCAD/$VER/Mod
+CFG=$FC/config/FreeCAD/$VER/user.cfg
 rsync -a --delete --exclude __pycache__ "$MOD/SolidStyle/" "$W/SolidStyle/"
 mkdir -p "$W/vr"
 rsync -a --delete --exclude __pycache__ "$(readlink -f "$MOD/VRLiveExport")/" "$W/vr/freecad_addon/"
 rsync -a --delete --exclude fcvr --exclude fcvr.log --exclude freecad_addon --exclude '*.old' --exclude openxr \
       ~/fcvr/ "$W/vr/viewer/"
 mkdir -p "$W/my_settings"
-cp "$FC/config/FreeCAD/user.cfg" "$W/my_settings/user.cfg"
-echo "solidworks_workbench/ updated from this machine"
+# settings without this machine's file paths (recent files, folders, programs), which mean nothing on Windows
+python3 - "$CFG" "$W/my_settings/user.cfg" <<'PY'
+import re, sys
+src, dst = sys.argv[1], sys.argv[2]
+text = open(src, encoding="utf-8").read()
+linux = re.compile(r'^\s*<FCText Name="[^"]*">(/home/|/app/|/usr/|/tmp/|/var/|/run/)[^<]*</FCText>\n', re.M)
+text = linux.sub("", text)
+open(dst, "w", encoding="utf-8", newline="\n").write(text)
+PY
+echo "updated from this machine (FreeCAD $VER)"

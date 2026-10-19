@@ -1,6 +1,6 @@
 # SolidWorks Style workbench for FreeCAD
 
-Makes FreeCAD 1.0 look and work like SolidWorks: a CommandManager ribbon with SolidWorks tool names,
+Makes FreeCAD 1.1 (1.0 works too) look and work like SolidWorks: a CommandManager ribbon with SolidWorks tool names,
 SolidWorks-style feature panels and shortcuts, and the light SolidWorks colour scheme.
 With SteamVR (Windows or Linux) there's an extra: **Show in VR** floats the part you're editing in your headset,
 for example a Steam Frame connected to the PC with Steam Link.
@@ -10,7 +10,7 @@ for example a Steam Frame connected to the PC with Steam Link.
 ---
 
 ## 1. Install FreeCAD
-Install **FreeCAD 1.0 or newer** from <https://www.freecad.org/downloads.php>
+Install **FreeCAD 1.1** (1.0 also works) from <https://www.freecad.org/downloads.php>
 (Linux: `flatpak install flathub org.freecad.FreeCAD` works too). Start it once, then close it.
 
 ## 2. Download this workbench
@@ -23,17 +23,22 @@ On this GitHub page, click the green **Code** button → **Download ZIP**, then 
 1. Close FreeCAD.
 2. Open the unzipped folder and double-click **`install.bat`**.
    If Windows shows "Windows protected your PC", click **More info → Run anyway**.
-3. A window shows where the workbench was installed. Press any key to close it.
+3. It asks whether to also copy my FreeCAD settings (look, mouse/navigation, toolbars, units) so it looks
+   exactly like my setup: press **Enter** for yes (close FreeCAD first), or type `n`.
+4. The window shows where the workbench was installed. Press any key to close it.
 
 This installs the workbench **and the VR viewer** (to `%LOCALAPPDATA%\fcvr`).
 
-Options (open a Command Prompt in the folder): `install.bat -MySettings` also copies my exact FreeCAD settings
-(theme, toolbars, shortcuts); your old ones are kept as `user.cfg.before_install_<date>`.
-`install.bat -NoVR` skips the VR viewer.
+It installs into the right folder for each FreeCAD version it finds (FreeCAD 1.1 keeps add-ons in
+`%APPDATA%\FreeCAD\v1-1\Mod`, 1.0 in `%APPDATA%\FreeCAD\Mod`), and moves older copies of this workbench
+out of the way. Your old settings are kept as `user.cfg.before_install_<date>`.
+
+Options (open a Command Prompt in the folder): `install.bat -MySettings` copies the settings without asking,
+`install.bat -NoSettings` never touches them, `install.bat -NoVR` skips the VR viewer.
 
 > Manual install (if the script doesn't work): copy the `SolidStyle` folder into FreeCAD's `Mod` folder.
 > To find that folder, open FreeCAD → **View → Panels → Python console** and type `App.getUserAppDataDir()`.
-> Usually it's `%APPDATA%\FreeCAD\Mod` (FreeCAD 1.1+: `%APPDATA%\FreeCAD\v1-1\Mod`). Restart FreeCAD afterwards.
+> For FreeCAD 1.1 it's `%APPDATA%\FreeCAD\v1-1\Mod` (1.0: `%APPDATA%\FreeCAD\Mod`). Restart FreeCAD afterwards.
 
 ### Linux
 ```
