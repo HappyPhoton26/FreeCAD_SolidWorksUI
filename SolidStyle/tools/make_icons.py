@@ -768,12 +768,153 @@ ICONS = {
 }
 
 
+# ---------------------------------------------------------------- FeatureManager tree icons
+# Drawn bolder than the ribbon icons: they are shown at 16-24 px.
+
+def t_part():
+    return block(-15, -15, -13, 30, 30, 24, ("#ffe680", "#c3c8cf", "#9aa1ab"))
+
+
+def t_assembly():
+    return block(-17, -5, -16, 22, 22, 14, GRY) + block(-3, -15, -2, 18, 18, 16, ("#ffe680", "#c3c8cf", "#9aa1ab"))
+
+
+def t_drawing():
+    return (sheet() + '<rect x="12" y="14" width="14" height="12" fill="#c3c8cf" stroke="%s" stroke-width="2"/>' % INK
+            + '<rect x="12" y="32" width="14" height="12" fill="#c3c8cf" stroke="%s" stroke-width="2"/>' % INK
+            + '<rect x="32" y="14" width="18" height="12" fill="#c3c8cf" stroke="%s" stroke-width="2"/>' % INK)
+
+
+def t_history():
+    return (circle((34, 34), 22, "#fff", INK, 3.5) + line((34, 34), (34, 20), INK, 3.5) + line((34, 34), (45, 40), INK, 3.5)
+            + path("M6 18 A28 28 0 0 1 22 8", col=BLU, w=4) + poly([(2, 12), (12, 22), (14, 10)], BLU, BLU, 1))
+
+
+def t_sensors():
+    return (circle((20, 44), 7, YEL[1], INK, 2.5)
+            + path("M20 24 A20 20 0 0 1 40 44", col=BLU, w=4) + path("M20 10 A34 34 0 0 1 54 44", col=BLU, w=4))
+
+
+def t_annotations():
+    return (path("M10 56 L28 8 L36 8 L54 56", col=BLU, w=6) + line((18, 40), (46, 40), BLU, 5))
+
+
+def t_folder(inner=""):
+    return (path("M4 16 L4 54 L60 54 L60 20 L30 20 L24 12 L8 12 Z", "#f5c542", INK, 2.5)
+            + path("M4 26 L60 26", col="#cc9b1a", w=2) + inner)
+
+
+def t_solid_bodies():
+    return t_folder(block(-8, -8, -10, 16, 16, 14, GRY, ox=34, oy=42, k=1.1))
+
+
+def t_solid_body():
+    return block(-15, -15, -13, 30, 30, 24, GRY)
+
+
+def t_material():
+    out = block(-17, -9, -10, 34, 18, 14, ("#d9dee5", "#aeb6c1", "#8a93a0"))
+    for i in range(4):
+        x = -13 + i * 8
+        out += line(iso(x, -9, 4), iso(x + 8, 9, 4), "#fff", 2.2)
+    return out
+
+
+def t_plane():
+    return poly([(4, 42), (24, 14), (60, 22), (40, 50)], "#c9ddf7", BLU, 3.2, 'fill-opacity="0.9"')
+
+
+def t_origin():
+    o = (14, 50)
+    return (arrow(o, (58, 50), BLU, 4.5, 11) + arrow(o, (14, 6), BLU, 4.5, 11) + circle(o, 5.5, RED, INK, 1.5))
+
+
+def t_sketch():
+    return (poly([(2, 46), (22, 16), (62, 22), (42, 54)], "#f4f7fb", INK, 2.6)
+            + path("M16 42 L32 26 L46 40 Z", col=BLU, w=3.5)
+            + circle((16, 42), 3.4, BLU, BLU, 1) + circle((32, 26), 3.4, BLU, BLU, 1) + circle((46, 40), 3.4, BLU, BLU, 1))
+
+
+def t_mates():
+    return t_folder(path("M26 50 L26 32 A5 5 0 0 1 36 32 L36 46 A3 3 0 0 1 30 46 L30 34", col="#445", w=3.2))
+
+
+def t_mate():
+    d = "M20 56 L20 18 A10 10 0 0 1 40 18 L40 46 A6 6 0 0 1 28 46 L28 22"
+    return path(d, col="#445", w=6.5) + path(d, col="#c7ced8", w=3)
+
+
+def t_sheet():
+    return sheet()
+
+
+def t_sheet_format():
+    return ('<rect x="6" y="6" width="52" height="52" fill="#fff" stroke="%s" stroke-width="3"/>' % INK
+            + '<rect x="26" y="40" width="32" height="18" fill="#dde3ea" stroke="%s" stroke-width="2"/>' % INK
+            + line((26, 49), (58, 49), INK, 1.5) + line((42, 40), (42, 58), INK, 1.5))
+
+
+def t_view():
+    return ('<rect x="6" y="10" width="52" height="44" fill="#fff" stroke="%s" stroke-width="2.5" stroke-dasharray="5,3"/>' % BLU
+            + block(-10, -10, -9, 20, 20, 16, GRY, ox=32, oy=34))
+
+
+def t_body_fc():
+    return block(-15, -15, -13, 30, 30, 24, ("#d6e4f7", "#a9bcd6", "#7f95b4"))
+
+
+def _pencil(x=34, y=4):
+    return poly([(x + 14, y), (x + 22, y + 8), (x + 4, y + 30), (x - 4, y + 34), (x - 2, y + 26)], YEL[1], INK, 2)
+
+
+def t_edit_feature():
+    return block(-16, -16, -16, 26, 26, 18, ("#ffe680", "#c3c8cf", "#9aa1ab"), ox=28, oy=40) + _pencil()
+
+
+def t_edit_sketch():
+    return t_sketch() + _pencil(36, 0)
+
+
+def t_suppress():
+    return (block(-14, -14, -12, 28, 28, 20, ("#e4e6ea", "#c8ccd2", "#aab0b8"))
+            + circle((44, 44), 15, "#fff", RED, 4.5) + line((34, 54), (54, 34), RED, 4.5))
+
+
+def t_filter():
+    return poly([(6, 8), (58, 8), (38, 32), (38, 54), (26, 60), (26, 32)], "#fff", INK, 3.5)
+
+
+def t_fc_tree():
+    out = line((14, 12), (14, 50), INK, 3) + line((14, 30), (26, 30), INK, 3) + line((14, 50), (26, 50), INK, 3)
+    for y in (12, 30, 50):
+        out += '<rect x="%d" y="%d" width="30" height="10" fill="#c9ddf7" stroke="%s" stroke-width="2.5"/>' % (
+            26 if y > 12 else 8, y - 5, BLU)
+    return out
+
+
+TREE = {
+    "edit_feature": t_edit_feature, "edit_sketch": t_edit_sketch, "suppress": t_suppress,
+    "filter": t_filter, "fc_tree": t_fc_tree,
+    "part": t_part, "assembly": t_assembly, "drawing": t_drawing, "history": t_history, "sensors": t_sensors,
+    "annotations": t_annotations, "folder": t_folder, "solid_bodies": t_solid_bodies, "solid_body": t_solid_body,
+    "material": t_material, "plane": t_plane, "origin": t_origin, "sketch": t_sketch, "mates": t_mates,
+    "mate": t_mate, "sheet": t_sheet, "sheet_format": t_sheet_format, "view": t_view, "component": t_part,
+    "axis": axis, "point": point, "coord_sys": coord_sys,
+}
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     for name, fn in ICONS.items():
         with open(os.path.join(OUT, name + ".svg"), "w") as f:
             f.write(svg(fn()))
     print("wrote %d icons to %s" % (len(ICONS), os.path.abspath(OUT)))
+    tree = os.path.join(OUT, "..", "tree")
+    os.makedirs(tree, exist_ok=True)
+    for name, fn in TREE.items():
+        with open(os.path.join(tree, name + ".svg"), "w") as f:
+            f.write(svg(fn()))
+    print("wrote %d tree icons to %s" % (len(TREE), os.path.abspath(tree)))
 
 
 if __name__ == "__main__":

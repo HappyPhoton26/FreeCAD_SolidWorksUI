@@ -7,7 +7,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtCore, QtWidgets
 
-from solidstyle import assembly, catalog, commands, drawing, features, gdt, look, shortcuts
+from solidstyle import assembly, catalog, commands, drawing, featuremanager, features, gdt, look, shortcuts
 
 WB = "SolidStyleWorkbench"
 PARAMS = "User parameter:BaseApp/Preferences/Mod/SolidStyle"
@@ -99,6 +99,10 @@ def activated():
     ui.refresh_known()
     ui.show_command_manager(True)
     ui.update_views(True)
+    try:
+        featuremanager.install()
+    except Exception as e:
+        App.Console.PrintError("SolidStyle: FeatureManager failed: %s\n" % e)
 
 
 def deactivated():
@@ -109,6 +113,10 @@ def deactivated():
     from solidstyle import ui
     ui.show_command_manager(False)
     ui.update_views(False)
+    try:
+        featuremanager.uninstall()
+    except Exception as e:
+        App.Console.PrintError("SolidStyle: FeatureManager failed: %s\n" % e)
 
 
 def context_menu(wb, recipient):
@@ -197,7 +205,10 @@ def _poll():
 # ---------------------------------------------------------------- SolidWorks-style naming
 
 def relabel_origin(body):
-    origin = getattr(body, "Origin", None)
+    try:
+        origin = getattr(body, "Origin", None)
+    except ReferenceError:      # the body was deleted (or its document closed) meanwhile
+        return
     if origin is None:
         return
     for f in origin.OriginFeatures:
@@ -217,7 +228,8 @@ def _relabel_feature(doc_name, obj_name):
     # only rename FreeCAD's default label ("Pad", "Pad001"...), never a user's name
     if not re.fullmatch(re.escape(obj.Name.rstrip("0123456789")) + r"\d*", obj.Label):
         return
-    pat = re.compile(re.escape(prefix) + r"(\d+)$")
+    # "Sketch001" (a FreeCAD name not renamed yet) must not count as Sketch1
+    pat = re.compile(re.escape(prefix) + r"([1-9]\d*)$")
     n = 0
     for o in doc.Objects:
         m = pat.match(o.Label)

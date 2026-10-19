@@ -225,6 +225,9 @@ FEATURE_NAMES = {
     "PartDesign::Plane": "Plane",
     "PartDesign::Line": "Axis",
     "PartDesign::Point": "Point",
+    "PartDesign::CoordinateSystem": "Coordinate System",
+    "PartDesign::Scaled": "Scale",
+    "PartDesign::Boolean": "Combine",
     "Sketcher::SketchObject": "Sketch",
 }
 
