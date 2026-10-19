@@ -120,7 +120,7 @@ EVALUATE = [
 ]
 
 ASSEMBLY = [
-    ("big", "Assembly_CreateAssembly", "New\nAssembly"),
+    ("big", "SS_NewAssembly", "New\nAssembly"),
     ("big", "SS_InsertComponents", "Insert\nComponents"),
     "|",
     ("big", "SS_Mate", "Mate"),

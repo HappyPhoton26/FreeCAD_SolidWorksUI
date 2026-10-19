@@ -179,18 +179,12 @@ class NewPart(_Cmd):
 class NewAssembly(_Cmd):
     pixmap = icon("NewAssembly")
     menu = "New Assembly"
-    tip = "New assembly document"
+    tip = "New assembly document, then pick the parts to insert"
     needs_doc = False
 
     def Activated(self):
-        import UtilsAssembly  # noqa: F401  (makes sure the Assembly module is loaded)
-        name = _next_name("Assem")
-        doc = App.newDocument(name)
-        doc.Label = name
-        Gui.runCommand("Assembly_CreateAssembly", 0)
-        Gui.ActiveDocument.ActiveView.viewIsometric()
-        from solidstyle import ui
-        ui.select_tab("Assembly")
+        from solidstyle import assembly
+        assembly.new_assembly()
 
 
 class NewDrawing(_Cmd):

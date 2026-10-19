@@ -463,6 +463,11 @@ class FeatureTree(QtWidgets.QTreeWidget):
         for c in comps:
             linked = c.getLinkedObject(True) if hasattr(c, "getLinkedObject") else c
             base = linked.Label if linked is not None else c.Label
+            if linked is not None and linked.Document is not c.Document:
+                # a part file: SolidWorks names the instance after the file
+                fstem = re.escape(re.sub(r"\d+$", "", linked.Document.Label))
+                if re.fullmatch(fstem + r"\d*", c.Label):
+                    base = linked.Document.Label
             # FreeCAD labels copies Part1, Part001, Part002...: those are all Part1<n>
             stem = re.escape(re.sub(r"\d+$", "", base))
             if not re.fullmatch(stem + r"\d*", c.Label) and not _default_label(c, "Link"):
