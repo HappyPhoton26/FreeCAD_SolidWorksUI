@@ -54,7 +54,8 @@ usually `~/Library/Application Support/FreeCAD/Mod`) and restart FreeCAD.
 ---
 
 ## 4. Turn it on
-Start FreeCAD and choose **SolidWorks Style** in the workbench drop-down list on the toolbar:
+The Windows installer makes FreeCAD start in it. If you're in another workbench (Part Design, Assembly with
+"joints", plain FreeCAD panels), choose **SolidWorks Style** in the workbench drop-down list on the toolbar:
 
 ![Pick SolidWorks Style in the workbench list](docs/images/workbench-select.png)
 
@@ -63,6 +64,9 @@ grey parts with black edges, middle-mouse rotate.
 **Tools → Restore My Settings** puts your old look back. You can switch back to it any time from the same list.
 
 To start in it every time: **Edit → Preferences → General → Start up workbench → SolidWorks Style**.
+
+If part of the workbench can't load on a computer, a message says which part, and the details go to
+`SolidStyle_status.log` in FreeCAD's user folder (`%APPDATA%\FreeCAD\v1-1` on Windows).
 
 ---
 

@@ -48,16 +48,54 @@ def _flatten(items):
     return res
 
 
+# ---------------------------------------------------------------- loading, one part at a time
+
+_problems = []           # parts that failed to load: (part, error)
+_told = False
+
+
+def _status_path():
+    import os
+    return os.path.join(App.getUserAppDataDir(), "SolidStyle_status.log")
+
+
+def _step(part, fn, *args):
+    """Run one part of the start-up; a failure is reported and logged, the rest still loads."""
+    try:
+        return fn(*args)
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        _problems.append((part, "%s: %s" % (type(e).__name__, e)))
+        App.Console.PrintError("SolidStyle: %s failed: %s\n%s" % (part, e, tb))
+        try:
+            with open(_status_path(), "a", encoding="utf-8") as f:
+                f.write("%s  FreeCAD %s  %s failed\n%s\n" % (time.ctime(), ".".join(App.Version()[:3]), part, tb))
+        except Exception:
+            pass
+
+
+def _tell_problems():
+    # Say so once, instead of quietly looking like plain FreeCAD.
+    global _told
+    if not _problems or _told:
+        return
+    _told = True
+    lines = "\n".join("  - %s (%s)" % p for p in _problems)
+    QtWidgets.QMessageBox.warning(
+        Gui.getMainWindow(), "SolidWorks Style",
+        "Some parts of the SolidWorks Style workbench did not load on this FreeCAD (%s):\n\n%s\n\n"
+        "Details are in %s and the Report view." % (".".join(App.Version()[:3]), lines, _status_path()))
+
+
 def initialize(wb):
     # Load the GUI parts of the modules whose tools we expose.
     _try_import("PartGui", "PartDesignGui", "SketcherGui", "TechDrawGui", "MeasureGui",
                 "Assembly_rc", "CommandCreateAssembly", "CommandInsertLink", "CommandCreateJoint",
                 "CommandSolveAssembly", "CommandCreateView", "CommandCreateBom")
-    commands.register()
-    features.register()
-    assembly.register()
-    drawing.register()
-    gdt.register()
+    for part, mod in (("Commands", commands), ("Feature panels", features), ("Assembly and mates", assembly),
+                      ("Drawings", drawing), ("GD&T", gdt)):
+        _step(part, mod.register)
     known = set(Gui.listCommands())
 
     def ok(cmds):
@@ -92,17 +130,15 @@ def activated():
     p = App.ParamGet(PARAMS)
     if not p.GetBool("FirstRunDone", False):
         p.SetBool("FirstRunDone", True)
-        look.apply_sw_theme(keep_navigation=False)
+        _step("SolidWorks colours", look.apply_sw_theme, False)
         App.Console.PrintMessage(
             "SolidStyle: applied the SolidWorks look (Tools > Restore My Settings undoes it).\n")
-    shortcuts.take_over()
+    _step("Shortcuts", shortcuts.take_over)
     ui.refresh_known()
-    ui.show_command_manager(True)
-    ui.update_views(True)
-    try:
-        featuremanager.install()
-    except Exception as e:
-        App.Console.PrintError("SolidStyle: FeatureManager failed: %s\n" % e)
+    _step("CommandManager", ui.show_command_manager, True)
+    _step("View buttons", ui.update_views, True)
+    _step("FeatureManager", featuremanager.install)
+    QtCore.QTimer.singleShot(500, _tell_problems)
 
 
 def deactivated():

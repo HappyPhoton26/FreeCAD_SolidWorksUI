@@ -20,6 +20,8 @@ src, dst = sys.argv[1], sys.argv[2]
 text = open(src, encoding="utf-8").read()
 linux = re.compile(r'^\s*<FCText Name="[^"]*">(/home/|/app/|/usr/|/tmp/|/var/|/run/)[^<]*</FCText>\n', re.M)
 text = linux.sub("", text)
+# start FreeCAD in this workbench, like the Frame
+text = re.sub(r'(<FCText Name="AutoloadModule">)[^<]*(</FCText>)', r'\1SolidStyleWorkbench\2', text)
 open(dst, "w", encoding="utf-8", newline="\n").write(text)
 PY
 echo "updated from this machine (FreeCAD $VER)"

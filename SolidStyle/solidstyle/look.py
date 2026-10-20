@@ -71,7 +71,7 @@ def _existing(grp, typ, name):
 def apply():
     backup = {}
     if os.path.exists(BACKUP):
-        with open(BACKUP) as f:
+        with open(BACKUP, encoding="utf-8") as f:
             backup = json.load(f)  # keep the very first backup
     for group, typ, name, value in SETTINGS:
         grp = App.ParamGet(group)
@@ -79,7 +79,7 @@ def apply():
         if key not in backup:
             backup[key] = _existing(grp, typ, name)
         getattr(grp, "Set" + typ)(name, value)
-    with open(BACKUP, "w") as f:
+    with open(BACKUP, "w", encoding="utf-8") as f:
         json.dump(backup, f, indent=1)
     App.ParamGet(ROOT).SetBool("LookApplied", True)
     _refresh_views()
@@ -89,7 +89,7 @@ def restore():
     if not os.path.exists(BACKUP):
         App.Console.PrintWarning("SolidStyle: no backup found, nothing to restore\n")
         return False
-    with open(BACKUP) as f:
+    with open(BACKUP, encoding="utf-8") as f:
         backup = json.load(f)
     for key, value in backup.items():
         group, typ, name = key.split("|")
@@ -151,7 +151,7 @@ def apply_sw_theme(keep_navigation=True):
     keep_navigation=False also sets the SolidWorks-like mouse (first run on a new machine)."""
     backup = {}
     if os.path.exists(BACKUP):
-        with open(BACKUP) as f:
+        with open(BACKUP, encoding="utf-8") as f:
             backup = json.load(f)
     for group, typ, names in ((MAINWIN, "String", ("StyleSheet", "Theme", "OverlayActiveStyleSheet")),
                               (THEMES, "Unsigned", ("ThemeAccentColor1", "ThemeAccentColor2", "ThemeAccentColor3"))):
@@ -160,7 +160,7 @@ def apply_sw_theme(keep_navigation=True):
             key = "%s|%s|%s" % (group, typ, name)
             if key not in backup:
                 backup[key] = _existing(grp, typ, name)
-    with open(BACKUP, "w") as f:
+    with open(BACKUP, "w", encoding="utf-8") as f:
         json.dump(backup, f, indent=1)
     _import_pack(LIGHT_PACK)
     th = App.ParamGet(THEMES)
@@ -184,7 +184,7 @@ def _apply_stylesheet_now():
     path = os.path.join(App.getResourceDir(), "Gui", "Stylesheets", name)
     if not os.path.exists(path):
         return
-    with open(path) as f:
+    with open(path, encoding="utf-8", errors="replace") as f:
         qss = f.read()
     th = App.ParamGet(THEMES)
     for i in (3, 2, 1):                                    # longest names first is unnecessary, but harmless

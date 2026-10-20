@@ -65,20 +65,54 @@ if (-not $MySettings -and -not $NoSettings -and (Test-Path $saved)) {
     $a = Read-Host "Copy settings? [Y/n]"
     $doSettings = ($a -eq "" -or $a -match '^[Yy]')
 }
-if ($doSettings) {
+# FreeCAD writes its settings back when it closes, so it has to be closed for this
+$running = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match '^(FreeCAD|freecad)' }
+if ($running) {
+    Write-Host ""
+    Write-Host "FreeCAD is running. Close it (save your work first), then press Enter."
+    Read-Host | Out-Null
     $running = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match '^(FreeCAD|freecad)' }
-    if ($running) {
-        Write-Host ""
-        Write-Host "FreeCAD is running. Close it (save your work first), then press Enter."
-        Read-Host | Out-Null
-        $running = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match '^(FreeCAD|freecad)' }
-        if ($running) { Write-Host "FreeCAD is still open - stopping here so nothing gets overwritten."; exit 1 }
-    }
+    if ($running) { Write-Host "FreeCAD is still open - stopping here so nothing gets overwritten."; exit 1 }
 }
 
 # ---------------------------------------------------------------------------------------------
 # Install into every FreeCAD user folder
 # ---------------------------------------------------------------------------------------------
+# Start FreeCAD in this workbench (otherwise it opens in Part Design and looks like plain FreeCAD).
+function Set-StartWorkbench($cfg) {
+    if (-not (Test-Path $cfg)) {
+        $xml = '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>' + "`n" +
+               '<FCParameters><FCParamGroup Name="Root"><FCParamGroup Name="BaseApp"><FCParamGroup Name="Preferences">' +
+               '<FCParamGroup Name="General"><FCText Name="AutoloadModule">SolidStyleWorkbench</FCText></FCParamGroup>' +
+               '</FCParamGroup></FCParamGroup></FCParamGroup></FCParameters>' + "`n"
+        [IO.File]::WriteAllText($cfg, $xml)
+        return
+    }
+    $doc = New-Object System.Xml.XmlDocument
+    $doc.PreserveWhitespace = $true
+    $doc.Load($cfg)
+    $node = $doc.DocumentElement
+    foreach ($name in @("Root", "BaseApp", "Preferences", "General")) {
+        $next = $node.SelectSingleNode("FCParamGroup[@Name='$name']")
+        if (-not $next) {
+            $next = $doc.CreateElement("FCParamGroup")
+            $next.SetAttribute("Name", $name)
+            $node.AppendChild($next) | Out-Null
+        }
+        $node = $next
+    }
+    $auto = $node.SelectSingleNode("FCText[@Name='AutoloadModule']")
+    if (-not $auto) {
+        $auto = $doc.CreateElement("FCText")
+        $auto.SetAttribute("Name", "AutoloadModule")
+        $node.AppendChild($auto) | Out-Null
+    }
+    $auto.InnerText = "SolidStyleWorkbench"
+    $w = New-Object System.Xml.XmlTextWriter($cfg, (New-Object System.Text.UTF8Encoding($false)))
+    $doc.Save($w)
+    $w.Close()
+}
+
 function Install-Folder($src, $dest) {
     if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
     Copy-Item -Recurse $src $dest
@@ -120,6 +154,12 @@ foreach ($t in $targets) {
         Copy-Item $saved $cfg
         Write-Host "  copied the Steam Frame's FreeCAD settings (old ones: user.cfg.before_install_*)"
     }
+    try {
+        Set-StartWorkbench (Join-Path $t "user.cfg")
+        Write-Host "  FreeCAD will start in the SolidWorks Style workbench"
+    } catch {
+        Write-Host "  couldn't set the start workbench ($_) - pick 'SolidWorks Style' in the workbench list" -ForegroundColor Yellow
+    }
 }
 
 # VR viewer: fcvr.exe (the add-on above feeds it and adds the Show in VR button)
@@ -140,7 +180,7 @@ if (-not $ok) {
     Write-Host "Something went wrong copying the files - see the messages above." -ForegroundColor Red
     exit 1
 }
-Write-Host "Done. Start FreeCAD and pick 'SolidWorks Style' in the workbench list." -ForegroundColor Green
+Write-Host "Done. Start FreeCAD - it opens in the SolidWorks Style workbench (CommandManager, FeatureManager, Mates)." -ForegroundColor Green
 if (-not $doSettings) {
     Write-Host "The first time, it switches FreeCAD to the SolidWorks look (Tools > Restore My Settings undoes it)."
 }

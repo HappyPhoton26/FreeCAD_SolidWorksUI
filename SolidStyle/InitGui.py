@@ -10,7 +10,17 @@ class SolidStyleWorkbench(Gui.Workbench):
     Icon = os.path.join(App.getUserAppDataDir(), "Mod", "SolidStyle", "solidstyle", "icons", "Workbench.svg")
 
     def Initialize(self):
-        from solidstyle import setup
+        try:
+            from solidstyle import setup
+        except Exception as e:
+            # say so, instead of quietly showing an empty FreeCAD
+            import traceback
+            from PySide import QtWidgets
+            App.Console.PrintError("SolidStyle could not load:\n%s" % traceback.format_exc())
+            QtWidgets.QMessageBox.critical(Gui.getMainWindow(), "SolidWorks Style",
+                                           "The SolidWorks Style workbench could not load on FreeCAD %s:\n\n%s: %s"
+                                           % (".".join(App.Version()[:3]), type(e).__name__, e))
+            raise
         setup.initialize(self)
 
     def Activated(self):
