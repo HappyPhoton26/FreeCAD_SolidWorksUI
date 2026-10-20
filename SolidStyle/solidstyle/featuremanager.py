@@ -73,7 +73,7 @@ MATE_NAMES = {
     "Ball": "Coincident", "Distance": "Distance", "Parallel": "Parallel", "Perpendicular": "Perpendicular",
     "Angle": "Angle", "RackPinion": "Rack Pinion", "Screw": "Screw", "Gears": "Gear", "Belt": "Belt",
 }
-_DEFAULT_JOINT = re.compile(r"(Joint|%s)\d*$" % "|".join(MATE_NAMES))
+_DEFAULT_JOINT = re.compile(r"(Joint|Tangent|%s)\d*$" % "|".join(set(MATE_NAMES) | set(MATE_NAMES.values())))
 _DEFAULT_PLANE = re.compile(r"(XY|XZ|YZ)[_-][Pp]lane\d*$")
 ORIGIN_ORDER = (("XZ_Plane", "Front Plane"), ("XY_Plane", "Top Plane"), ("YZ_Plane", "Right Plane"))
 # TechDraw objects the SolidWorks drawing tree does not list
@@ -482,7 +482,7 @@ class FeatureTree(QtWidgets.QTreeWidget):
         seq = {}
         for j in joints:
             jt = str(getattr(j, "JointType", ""))
-            sw = MATE_NAMES.get(jt, jt or "Mate")
+            sw = getattr(j, "SolidStyleMate", "") or MATE_NAMES.get(jt, jt or "Mate")
             if sw == "Distance" and abs(float(getattr(j, "Distance", 0) or 0)) < 1e-9:
                 sw = "Coincident"
             if _DEFAULT_JOINT.fullmatch(j.Label):
@@ -494,7 +494,9 @@ class FeatureTree(QtWidgets.QTreeWidget):
             parts = [p for p in parts if p]
             if parts:
                 text += " (%s)" % ",".join(parts)
-            self._add(mates, text, icon("tree/mate"), "mate", j)
+            ic = "sw/Mate_" + sw.replace(" ", "")
+            self._add(mates, text, icon(ic if os.path.exists(os.path.join(ICONS, ic + ".svg")) else "tree/mate"),
+                      "mate", j)
         for o in rest:
             self._generic(parent, o, shown)
 
@@ -1164,6 +1166,9 @@ _doc_obs = None
 _sel_obs = None
 
 
+_host = None             # the dock the FeatureManager sits in
+
+
 def _dock(name):
     mw = Gui.getMainWindow()
     for d in mw.findChildren(QtWidgets.QDockWidget):
@@ -1243,11 +1248,17 @@ class _SelObserver:
 
 def install():
     """Put the FeatureManager in the Model panel (called when the workbench is activated)."""
-    global _panel, _orig, _rebuild_timer, _sel_timer, _doc_obs, _sel_obs
-    dock = _dock("Model")
+    global _panel, _orig, _rebuild_timer, _sel_timer, _doc_obs, _sel_obs, _host
+    # FreeCAD's tree lives in "Model" (1.0+); older layouts or settings may have the plain tree view instead
+    dock = _dock("Model") or _dock("Combo View") or _dock("Tree view")
     if dock is None:
-        App.Console.PrintLog("SolidStyle: no Model panel, FeatureManager not installed\n")
-        return
+        Gui.runCommand("Std_ComboView", 0)          # bring FreeCAD's Model panel back if it was closed
+        dock = _dock("Model")
+    if dock is None:
+        raise RuntimeError("FreeCAD's Model panel wasn't found (panels: %s)"
+                           % ", ".join(d.objectName() for d in Gui.getMainWindow().findChildren(QtWidgets.QDockWidget)))
+    _host = dock
+    dock.show()
     if _panel is None:
         _panel = Panel()
         _rebuild_timer = QtCore.QTimer()
@@ -1262,7 +1273,7 @@ def install():
         _panel.hold_classic(_orig)
     _panel.stack.setCurrentIndex(0)
     for name, title in (("Model", "FeatureManager"), ("Tasks", "PropertyManager")):
-        d = _dock(name)
+        d = dock if name == "Model" else _dock(name)
         if d is not None:
             _titles.setdefault(name, d.windowTitle())
             d.setWindowTitle(title)
@@ -1283,7 +1294,7 @@ def uninstall():
         _doc_obs = _sel_obs = None
     if _context_bar is not None:
         _context_bar.hide()
-    dock = _dock("Model")
+    dock = _host
     if dock is not None and _panel is not None and dock.widget() is _panel:
         w = _panel.release_classic()
         _panel.setParent(None)
@@ -1291,7 +1302,7 @@ def uninstall():
             dock.setWidget(w)
             w.show()
     for name, title in _titles.items():
-        d = _dock(name)
+        d = _host if name == "Model" else _dock(name)
         if d is not None:
             d.setWindowTitle(title)
     _titles.clear()

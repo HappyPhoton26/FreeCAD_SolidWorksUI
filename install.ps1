@@ -119,6 +119,38 @@ function Install-Folder($src, $dest) {
     Get-ChildItem -Path $dest -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
 }
 
+# ---------------------------------------------------------------------------------------------
+# Older copies anywhere FreeCAD might load them from (another version's Mod folder, a Macro folder,
+# FreeCAD's own program folder) would be used instead of this one: move them out of the way.
+# ---------------------------------------------------------------------------------------------
+$installed = @($targets | ForEach-Object { [IO.Path]::GetFullPath((Join-Path (Join-Path $_ "Mod") "SolidStyle")) })
+$search = @()
+if (Test-Path $Root) { $search += $Root }
+$search += $found | ForEach-Object { $_.FullName }
+foreach ($base in $search) {
+    $pkgs = Get-ChildItem -Path $base -Recurse -Directory -Filter "solidstyle" -ErrorAction SilentlyContinue |
+            Where-Object { ($_.Name -ceq "solidstyle") -and (Test-Path (Join-Path $_.FullName "catalog.py")) -and
+                           ($_.FullName -notmatch 'disabled_mods') }
+    foreach ($pkg in $pkgs) {
+        $owner = $pkg.Parent.FullName                          # the workbench folder holding it
+        if ($installed -contains [IO.Path]::GetFullPath($owner)) { continue }   # replaced below anyway
+        $what = $owner
+        if (-not (Test-Path (Join-Path $owner "InitGui.py")) -or ($pkg.Parent.Name -in @("Mod", "Macro", "FreeCAD"))) {
+            $what = $pkg.FullName                              # loose package, e.g. in Macro: move just that
+        }
+        $off = Join-Path $Root "disabled_mods"
+        New-Item -ItemType Directory -Force -Path $off | Out-Null
+        $to = Join-Path $off ((Split-Path $what -Leaf) + "_" + (Get-Date -Format "yyyyMMdd_HHmmss"))
+        try {
+            Move-Item $what $to -ErrorAction Stop
+            Write-Host "Moved an older copy out of the way: $what -> $to" -ForegroundColor Yellow
+        } catch {
+            Write-Host "There's an older copy in $what that couldn't be moved ($_)." -ForegroundColor Red
+            Write-Host "  Delete that folder by hand (it may need administrator rights)." -ForegroundColor Red
+        }
+    }
+}
+
 $ok = $true
 Write-Host ""
 foreach ($t in $targets) {

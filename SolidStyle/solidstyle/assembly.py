@@ -628,26 +628,30 @@ def insert_components():
 # ======================================================================
 
 # button key -> (text, FreeCAD joint type, icon, tooltip)
+# (key, SolidWorks name, FreeCAD joint type, icon, tip)
 STANDARD = [
-    ("coincident", "Coincident", "Distance", "Assembly_CreateJointDistance", "Faces/edges/points touch."),
-    ("parallel", "Parallel", "Parallel", "Assembly_CreateJointParallel", "Faces or edges stay parallel."),
-    ("perpendicular", "Perpendicular", "Perpendicular", "Assembly_CreateJointPerpendicular",
-     "Faces or edges at 90 degrees."),
-    ("concentric", "Concentric", "Cylindrical", "Assembly_CreateJointCylindrical",
+    ("coincident", "Coincident", "Distance", "Mate_Coincident", "Faces/edges/points touch."),
+    ("parallel", "Parallel", "Parallel", "Mate_Parallel", "Faces or edges stay parallel."),
+    ("perpendicular", "Perpendicular", "Perpendicular", "Mate_Perpendicular", "Faces or edges at 90 degrees."),
+    ("tangent", "Tangent", "Distance", "Mate_Tangent",
+     "A round face touches a flat or another round face (cylinder, sphere, cone)."),
+    ("concentric", "Concentric", "Cylindrical", "Mate_Concentric",
      "Round faces/edges share an axis (can still spin and slide)."),
-    ("lock", "Lock", "Fixed", "Assembly_CreateJointFixed", "The two components can't move relative to each other."),
-    ("distance", "Distance", "Distance", "Assembly_CreateJointDistance", "A set distance apart."),
-    ("angle", "Angle", "Angle", "Assembly_CreateJointAngle", "A set angle between faces or edges."),
+    ("lock", "Lock", "Fixed", "Mate_Lock", "The two components can't move relative to each other."),
+    ("distance", "Distance", "Distance", "Mate_Distance", "A set distance apart."),
+    ("angle", "Angle", "Angle", "Mate_Angle", "A set angle between faces or edges."),
 ]
 ADVANCED = [
-    ("hinge", "Hinge", "Revolute", "Assembly_CreateJointRevolute", "Concentric + coincident: only spins."),
-    ("slider", "Slider", "Slider", "Assembly_CreateJointSlider", "Only slides along one direction."),
-    ("ball", "Ball", "Ball", "Assembly_CreateJointBall", "Points touch, free to rotate (ball joint)."),
-    ("gear", "Gear", "Gears", "Assembly_CreateJointGears", "Gear mate."),
-    ("rack", "Rack Pinion", "RackPinion", "Assembly_CreateJointRackPinion", "Rack and pinion mate."),
-    ("screw", "Screw", "Screw", "Assembly_CreateJointScrew", "Screw mate."),
-    ("belt", "Belt", "Belt", "Assembly_CreateJointBelt", "Belt / pulley mate."),
+    ("hinge", "Hinge", "Revolute", "Mate_Hinge", "Concentric + coincident: only spins."),
+    ("slider", "Slider", "Slider", "Mate_Slider", "Only slides along one direction."),
+    ("ball", "Ball", "Ball", "Mate_Ball", "Points touch, free to rotate (ball joint)."),
+    ("gear", "Gear", "Gears", "Mate_Gear", "Gear mate."),
+    ("rack", "Rack Pinion", "RackPinion", "Mate_RackPinion", "Rack and pinion mate."),
+    ("screw", "Screw", "Screw", "Mate_Screw", "Screw mate."),
+    ("belt", "Belt", "Belt", "Mate_Belt", "Belt / pulley mate."),
 ]
+TOUCHING = ("coincident", "tangent")       # Distance joints held at 0
+_BY_NAME = {t: k for k, t, *_r in STANDARD + ADVANCED}
 _KINDS = {k: (t, jt) for k, t, jt, _i, _tip in STANDARD + ADVANCED}
 _BY_JOINT = {"Fixed": "lock", "Revolute": "hinge", "Cylindrical": "concentric", "Slider": "slider", "Ball": "ball",
              "Distance": "coincident", "Parallel": "parallel", "Perpendicular": "perpendicular", "Angle": "angle",
@@ -675,14 +679,117 @@ def _round(el):
     return False
 
 
+def _sphere(el):
+    import Part
+    try:
+        return el.ShapeType == "Face" and isinstance(el.Surface, Part.Sphere)
+    except Exception:
+        return False
+
+
+def _flat(el):
+    import Part
+    try:
+        return el.ShapeType == "Face" and isinstance(el.Surface, Part.Plane)
+    except Exception:
+        return False
+
+
 def guess_mate(ref1, ref2):
-    """SolidWorks' default for the two picks: concentric for round things, coincident otherwise."""
+    """SolidWorks' default for the two picks: concentric for two round things, tangent for a round
+    face on a flat face (or a ball), coincident otherwise."""
     a, b = _element(ref1), _element(ref2)
     if a is None or b is None:
         return "coincident"
     if _round(a) and _round(b):
         return "concentric"
+    if (_round(a) or _sphere(a)) and (_flat(b) or _sphere(b)) and a.ShapeType == "Face" or \
+            (_round(b) or _sphere(b)) and (_flat(a) or _sphere(a)) and b.ShapeType == "Face":
+        return "tangent"
     return "coincident"
+
+
+def _shape_info(el):
+    """(kind, point, direction, radius) of a picked face: plane -> outward normal, cylinder/cone -> axis, sphere."""
+    import Part
+    if el is None or el.ShapeType != "Face":
+        return None
+    srf = el.Surface
+    if isinstance(srf, Part.Plane):
+        u, v = srf.parameter(el.CenterOfMass)
+        return ("plane", el.CenterOfMass, el.normalAt(u, v), 0.0)
+    if isinstance(srf, Part.Cylinder):
+        ax = App.Vector(srf.Axis).normalize()            # point: the middle of the face, on the axis
+        return ("cyl", srf.Center + ax * (el.CenterOfMass - srf.Center).dot(ax), ax, srf.Radius)
+    if isinstance(srf, Part.Sphere):
+        return ("sphere", srf.Center, None, srf.Radius)
+    return None
+
+
+def _turn(a, b):
+    """Rotation taking direction a to b (any perpendicular axis when they're opposite)."""
+    a, b = App.Vector(a).normalize(), App.Vector(b).normalize()
+    if a.cross(b).Length < 1e-9 and a.dot(b) < 0:
+        ax = a.cross(App.Vector(1, 0, 0))
+        if ax.Length < 1e-6:
+            ax = a.cross(App.Vector(0, 1, 0))
+        return App.Rotation(ax, 180)
+    return App.Rotation(a, b)
+
+
+def _about(point, rot):
+    """Placement rotating by rot about point."""
+    return App.Placement(point - rot.multVec(point), rot)
+
+
+def tangent_motion(fixed, moving):
+    """Placement (global) that puts the moving round/flat face tangent to the fixed one, outside it.
+    fixed/moving are _shape_info tuples. None when the pair can't be tangent."""
+    if fixed is None or moving is None:
+        return None
+    fk, fp, fd, fr = fixed
+    mk, mp, md, mr = moving
+    if fk == "plane" and mk in ("cyl", "sphere"):
+        t = App.Placement()
+        if mk == "cyl":                                   # lay the axis parallel to the face
+            proj = md - fd * md.dot(fd)
+            if proj.Length < 1e-6:
+                proj = fd.cross(App.Vector(1, 0, 0))
+                if proj.Length < 1e-6:
+                    proj = fd.cross(App.Vector(0, 1, 0))
+            t = _about(mp, _turn(md, proj))
+        c = t.multVec(mp)
+        # sit over the middle of the picked face, on the outside, touching
+        return App.Placement(fp + fd * mr - c, App.Rotation()).multiply(t)
+    if mk == "plane" and fk in ("cyl", "sphere"):         # move the flat part instead: the inverse motion
+        t = tangent_motion(moving, fixed)
+        return t.inverse() if t is not None else None
+    if fk in ("cyl", "sphere") and mk in ("cyl", "sphere"):
+        t = App.Placement()
+        if fk == "cyl" and mk == "cyl":                    # axes parallel
+            t = _about(mp, _turn(md, fd if md.dot(fd) >= 0 else -fd))
+        c = t.multVec(mp)
+        v = c - fp
+        if fk == "cyl":
+            v = v - fd * v.dot(fd)                        # from the fixed axis, square to it
+        if v.Length < 1e-6:
+            v = (fd.cross(App.Vector(1, 0, 0)) if fd is not None else App.Vector(1, 0, 0))
+            if v.Length < 1e-6:
+                v = fd.cross(App.Vector(0, 1, 0))
+        n = App.Vector(v).normalize()
+        return App.Placement(n * (fr + mr - v.Length), App.Rotation()).multiply(t)
+    return None
+
+
+def mate_kind(joint):
+    """SolidWorks mate key for a FreeCAD joint (the type saved by the Mate panel, else a guess from the joint)."""
+    saved = getattr(joint, "SolidStyleMate", "")
+    if saved in _BY_NAME:
+        return _BY_NAME[saved]
+    key = _BY_JOINT.get(str(getattr(joint, "JointType", "")), "coincident")
+    if key == "coincident" and abs(float(getattr(joint, "Distance", 0) or 0)) > 1e-9:
+        key = "distance"
+    return key
 
 
 _mate_cls = None
@@ -696,17 +803,20 @@ def _mate_class():
     import JointObject
 
     class MatePanel(JointObject.TaskAssemblyCreateJoint):
-        def __init__(self, kind=None):
+        def __init__(self, kind=None, joint=None):
+            if joint is not None:
+                kind = mate_kind(joint)
             self.kind = kind or "coincident"
-            self.user_kind = kind is not None      # a mate button was clicked: don't guess
+            self.user_kind = kind is not None      # a mate button was clicked (or editing): don't guess
             self.ready = False
-            super().__init__(JointObject.JointTypes.index(_KINDS[self.kind][1]), None, True)
+            super().__init__(JointObject.JointTypes.index(_KINDS[self.kind][1]), joint, True)
             if not hasattr(self, "jForm"):
                 return
             self._build()
             self.ready = True
             if len(self.refs) == 2 and not self.user_kind:     # two picks made before clicking Mate
                 self.set_kind(guess_mate(self.refs[0], self.refs[1]))
+            self.adaptUi()
             self._show_kind()
 
         # ------------------------------------------------------------ UI
@@ -776,8 +886,7 @@ def _mate_class():
         def _button(self, key, text, ic, tip):
             b = QtWidgets.QToolButton()
             b.setText(text)
-            fc = QtGui.QIcon(":/icons/%s.svg" % ic)      # FreeCAD's own, one per joint type
-            b.setIcon(_icon(ic) if fc.isNull() else fc)
+            b.setIcon(_icon(ic))
             b.setIconSize(QtCore.QSize(22, 22))
             b.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
             b.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
@@ -821,11 +930,13 @@ def _mate_class():
                 self.adaptUi()
             if key == "coincident" and abs(float(self.joint.Distance)) > 1e-9:
                 self.joint.Distance = 0.0
+            if key == "tangent":
+                self._place_tangent()
             self._show_kind()
 
         def adaptUi(self):
             super().adaptUi()
-            if getattr(self, "ready", False) and self.kind == "coincident":
+            if getattr(self, "ready", False) and self.kind in TOUCHING:
                 self.jForm.distanceLabel.hide()
                 self.jForm.distanceSpinbox.hide()
 
@@ -842,7 +953,45 @@ def _mate_class():
                     self.adaptUi()
             super().updateJoint()
             if self.ready:
+                if self.kind == "tangent":
+                    self._place_tangent()
                 self._show_kind()
+
+        def _place_tangent(self):
+            """FreeCAD's pre-solve stands a cylinder on end in the middle of a face, and the solver can't get
+            it from there to lying against the face: put it there first, on the outside, then solve."""
+            if len(self.refs) != 2 or not getattr(self, "creating", True) or self.activeType != "Assembly":
+                return
+            try:
+                import UtilsAssembly
+                j, asm = self.joint, self.assembly
+                parts = [UtilsAssembly.getMovingPart(r) for r in self.refs]
+                j.Suppressed = True
+                connected = [asm.isPartConnected(p) for p in parts]
+                j.Suppressed = False
+                mv = 1 if not connected[1] else 0 if not connected[0] else None
+                if mv is None:
+                    return
+                info = [_shape_info(_element(r)) for r in self.refs]
+                motion = tangent_motion(info[1 - mv], info[mv])
+                if motion is None:
+                    return
+                part = parts[mv]
+                part.Placement = motion.multiply(part.Placement)
+                j.Distance = 0.0
+                asm.solve()
+                # the solver keeps the round face on the side of the flat face's connector: check it's outside
+                kinds = [i[0] for i in info]
+                if "plane" in kinds and ("cyl" in kinds or "sphere" in kinds):
+                    now = [_shape_info(_element(r)) for r in self.refs]
+                    pl = now[kinds.index("plane")]
+                    rd = now[1 - kinds.index("plane")]
+                    if (rd[1] - pl[1]).dot(pl[2]) < 0:          # ended up inside: other side of the connector
+                        j.Distance = -2 * rd[3]
+                        asm.solve()
+                Gui.updateGui()
+            except Exception as e:
+                App.Console.PrintLog("SolidStyle: tangent placement: %s\n" % e)
 
         def _flip(self):
             if len(self.refs) == 2:
@@ -858,8 +1007,14 @@ def _mate_class():
             if len(self.refs) != 2:
                 _status("Pick a face/edge on a second component first")
                 return False
+            j = self.joint
+            if "SolidStyleMate" not in j.PropertiesList:
+                j.addProperty("App::PropertyString", "SolidStyleMate", "Joint", "SolidWorks mate type")
+                j.setEditorMode("SolidStyleMate", 1)
+            j.SolidStyleMate = _KINDS[self.kind][0]
+            editing = not getattr(self, "creating", True)
             ok = super().accept()
-            if ok and keep:
+            if ok and keep and not editing:
                 QtCore.QTimer.singleShot(0, lambda: start_mate(None))
             return ok
 
@@ -881,15 +1036,70 @@ def start_mate(kind=None):
     try:
         panel = _mate_class()(kind)
     except Exception as e:
-        App.Console.PrintError("SolidStyle: Mate panel failed (%s), using FreeCAD's\n" % e)
+        _mate_failed(e)
         _u, ccj = _modules()
         ccj.activateJoint(5)
         return
+    _show_mate(panel, asm.Document.Name)
+
+
+def _show_mate(panel, doc_name):
     dlg = Gui.Control.showDialog(panel)
     if dlg is not None:
         dlg.setAutoCloseOnTransactionChange(True)
         dlg.setAutoCloseOnDeletedDocument(True)
-        dlg.setDocumentName(asm.Document.Name)
+        dlg.setDocumentName(doc_name)
+
+
+def _mate_failed(e):
+    """Never fall back to FreeCAD's joint panel silently: say why."""
+    import traceback
+    tb = traceback.format_exc()
+    App.Console.PrintError("SolidStyle: Mate panel failed, using FreeCAD's joint panel:\n%s" % tb)
+    try:
+        from solidstyle import setup
+        with open(setup._status_path(), "a", encoding="utf-8") as f:
+            f.write("Mate panel failed (FreeCAD %s)\n%s\n" % (".".join(App.Version()[:3]), tb))
+    except Exception:
+        pass
+    QtWidgets.QMessageBox.warning(Gui.getMainWindow(), "Mate",
+                                  "The SolidWorks Mate panel couldn't open on this FreeCAD (%s: %s), so FreeCAD's "
+                                  "joint panel is used instead.\n\nTools > Copy SolidWorks Style Diagnostics copies "
+                                  "the details." % (type(e).__name__, e))
+
+
+def edit_mate(joint):
+    """Double-clicking a mate opens it in the Mate PropertyManager (instead of FreeCAD's joint panel)."""
+    import JointObject
+    App.closeActiveTransaction(True)
+    task = Gui.Control.activeTaskDialog()
+    if task:
+        task.reject()
+    asm = joint.Proxy.getAssembly(joint)
+    if asm is None:
+        return False
+    if _modules()[0].activeAssembly() != asm:
+        Gui.getDocument(asm.Document).setEdit(asm)
+    _show_mate(_mate_class()(None, joint), asm.Document.Name)
+    return True
+
+
+def _hook_joint_edit():
+    import JointObject
+    vp = JointObject.ViewProviderJoint
+    if getattr(vp.doubleClicked, "_solidstyle", False):
+        return
+    orig = vp.doubleClicked
+
+    def doubleClicked(self, vobj):
+        if Gui.activeWorkbench().name() == "SolidStyleWorkbench":
+            try:
+                return edit_mate(vobj.Object)
+            except Exception as e:
+                _mate_failed(e)
+        return orig(self, vobj)
+    doubleClicked._solidstyle = True
+    vp.doubleClicked = doubleClicked
 
 
 def run_after_activate(cmd, need_parts=0, fix=False):
@@ -940,6 +1150,7 @@ def register():
     except Exception as e:
         App.Console.PrintLog("SolidStyle: Assembly module unavailable: %s\n" % e)
         return
+    _hook_joint_edit()
     Gui.addCommand("SS_Mate", _AsmCmd(
         "Mate", "Add mates: click a face/edge on two components; the mate type is picked for you.",
         "Assembly_CreateJointDistance", lambda: start_mate(None)))
@@ -954,5 +1165,8 @@ def register():
     Gui.addCommand("SS_ExplodedView", _AsmCmd(
         "Exploded View", "Create an exploded view.", "Assembly_CreateView",
         run_after_activate("Assembly_CreateView", 1, True)))
+    for key, text, _jt, ic, tip in STANDARD + ADVANCED:      # one command per SolidWorks mate
+        Gui.addCommand("SS_Mate_" + text.replace(" ", ""), _AsmCmd(text, text + " mate: " + tip, ic,
+                                                                    lambda k=key: start_mate(k)))
     for fc, (idx, menu, tip) in MATES.items():
         Gui.addCommand("SS_" + fc.split("_", 1)[1], _AsmCmd(menu, tip, fc, lambda k=_mate_kind(fc): start_mate(k)))

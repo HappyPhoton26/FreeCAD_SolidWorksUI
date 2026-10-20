@@ -251,6 +251,35 @@ class RestoreLook(_Cmd):
             App.Console.PrintMessage("SolidStyle: your original view settings were restored\n")
 
 
+class Diagnostics(_Cmd):
+    pixmap = icon("Restore")
+    menu = "Copy SolidWorks Style Diagnostics"
+    tip = "Copy a short report (versions, folders, panels, errors) to the clipboard, to paste when asking for help"
+    needs_doc = False
+
+    def Activated(self):
+        import platform
+        import sys
+        from PySide import QtWidgets
+        from solidstyle import setup
+        mw = Gui.getMainWindow()
+        lines = [
+            "FreeCAD %s, Python %s, %s" % (".".join(App.Version()[:4]), platform.python_version(), platform.platform()),
+            "workbench code: %s" % os.path.dirname(os.path.abspath(__file__)),
+            "user data: %s" % App.getUserAppDataDir(),
+            "active workbench: %s" % Gui.activeWorkbench().name(),
+            "docks: %s" % ", ".join("%s%s" % (d.objectName(), "" if d.isVisible() else " (hidden)")
+                                    for d in mw.findChildren(QtWidgets.QDockWidget)),
+            "start-up problems: %s" % (setup._problems or "none"),
+            "older copies: %s" % (setup.other_copies or "none"),
+            "solidstyle folders on sys.path: %s" % [p for p in sys.path
+                                                   if os.path.isdir(os.path.join(p, "solidstyle"))],
+        ]
+        text = "\n".join(lines)
+        QtWidgets.QApplication.clipboard().setText(text)
+        QtWidgets.QMessageBox.information(mw, "SolidWorks Style", "Copied to the clipboard:\n\n" + text)
+
+
 def register():
     for name, menu, accel, std, pix in VIEWS:
         Gui.addCommand(name, _View(menu, accel, std, pix))
@@ -258,5 +287,5 @@ def register():
                       ("SS_ShortcutBar", ShortcutBar), ("SS_NewPart", NewPart),
                       ("SS_NewAssembly", NewAssembly), ("SS_NewDrawing", NewDrawing),
                       ("SS_MassProperties", MassProperties), ("SS_ApplyLook", ApplyLook),
-                      ("SS_RestoreLook", RestoreLook)]:
+                      ("SS_RestoreLook", RestoreLook), ("SS_Diagnostics", Diagnostics)]:
         Gui.addCommand(name, cls())

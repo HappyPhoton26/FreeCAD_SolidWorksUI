@@ -94,7 +94,10 @@ Double-click a feature in the tree to edit it with the same panel.
 
 ### Assemblies
 On the **Assembly** tab: **New Assembly → Insert Components → Mate**. The first part is fixed automatically,
-like SolidWorks' (f). Then pick a face or edge on each of two parts.
+like SolidWorks' (f). Then pick a face or edge on each of two parts: the Mate PropertyManager picks the mate
+for you (Concentric for two round faces, Tangent for a round face on a flat one, otherwise Coincident) and
+you can switch it with the Standard Mates buttons (Coincident, Parallel, Perpendicular, Tangent, Concentric,
+Lock, Distance, Angle) or Advanced / Mechanical Mates. Double-click a mate in the FeatureManager to edit it.
 
 ![Assembly tab](docs/images/assembly-tab.png)
 
@@ -186,7 +189,10 @@ It needs a graphics driver with OpenGL 4.3 (any recent NVIDIA, AMD or Intel driv
 ## Differences from SolidWorks
 - FreeCAD is Z-up: "Front Plane" is FreeCAD's XZ plane, "Top Plane" is XY.
 - Mouse: middle-drag rotates, Shift+middle pans.
-- Each Body holds one solid. Mates are FreeCAD joints (Concentric ≈ Revolute, Coincident ≈ Distance 0, Lock ≈ Fixed).
+- Each Body holds one solid. Mates are FreeCAD joints underneath (Concentric = Cylindrical, Coincident and
+  Tangent = Distance 0, Lock = Fixed, Hinge = Revolute).
+- Something not looking right on another computer? **Tools → Copy SolidWorks Style Diagnostics** copies a
+  short report (FreeCAD version, which copy of the workbench loaded, panels, errors) to paste when asking for help.
 - Patterns, Mirror, Sweep, Loft, Draft and Helix still use FreeCAD's own panels.
 
 ## Updating (maintainer)

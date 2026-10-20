@@ -54,6 +54,25 @@ _problems = []           # parts that failed to load: (part, error)
 _told = False
 
 
+def _other_copies():
+    """Other solidstyle folders Python could find (older installs); InitGui.py makes sure ours wins."""
+    import os
+    import sys
+    here = os.path.normcase(os.path.dirname(os.path.abspath(__file__)))
+    out = []
+    for p in sys.path:
+        try:
+            d = os.path.join(p, "solidstyle")
+            if os.path.isfile(os.path.join(d, "catalog.py")) and os.path.normcase(os.path.abspath(d)) != here:
+                out.append(os.path.abspath(d))
+        except Exception:
+            pass
+    return out
+
+
+other_copies = _other_copies()
+
+
 def _status_path():
     import os
     return os.path.join(App.getUserAppDataDir(), "SolidStyle_status.log")
@@ -78,14 +97,19 @@ def _step(part, fn, *args):
 def _tell_problems():
     # Say so once, instead of quietly looking like plain FreeCAD.
     global _told
-    if not _problems or _told:
+    if (not _problems and not other_copies) or _told:
         return
     _told = True
-    lines = "\n".join("  - %s (%s)" % p for p in _problems)
-    QtWidgets.QMessageBox.warning(
-        Gui.getMainWindow(), "SolidWorks Style",
-        "Some parts of the SolidWorks Style workbench did not load on this FreeCAD (%s):\n\n%s\n\n"
-        "Details are in %s and the Report view." % (".".join(App.Version()[:3]), lines, _status_path()))
+    text = ""
+    if _problems:
+        text += ("Some parts of the SolidWorks Style workbench did not load on this FreeCAD (%s):\n\n%s\n\n"
+                 "Details are in %s and the Report view.\n\n"
+                 % (".".join(App.Version()[:3]), "\n".join("  - %s (%s)" % p for p in _problems), _status_path()))
+    if other_copies:
+        text += ("Older copies of this workbench were found and ignored:\n\n%s\n\n"
+                 "Delete them (or run install.bat again) so they can't get in the way."
+                 % "\n".join("  - " + p for p in other_copies))
+    QtWidgets.QMessageBox.warning(Gui.getMainWindow(), "SolidWorks Style", text)
 
 
 def initialize(wb):
@@ -111,7 +135,7 @@ def initialize(wb):
     wb.appendMenu(["&View", "Orientation (SolidWorks)"],
                   ok([v[0] for v in commands.VIEWS] + ["SS_NormalTo", "SS_ZoomFit"]))
     wb.appendMenu("&Tools", ok(["SS_Rebuild", "SS_ShortcutBar", "SS_MassProperties", "Std_Measure",
-                                "Separator", "SS_ApplyLook", "SS_RestoreLook"]))
+                                "Separator", "SS_ApplyLook", "SS_RestoreLook", "SS_Diagnostics"]))
     wb.appendMenu("&File", ok(["SS_NewPart", "SS_NewAssembly", "SS_NewDrawing", "SS_MakeDrawing"]))
 
     global _timer, _observer
