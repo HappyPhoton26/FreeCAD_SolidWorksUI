@@ -134,6 +134,10 @@ def initialize(wb):
         wb.appendMenu(["&Insert", tab], ok(_flatten(items)))
     wb.appendMenu(["&View", "Orientation (SolidWorks)"],
                   ok([v[0] for v in commands.VIEWS] + ["SS_NormalTo", "SS_ZoomFit"]))
+    # the VR add-on's buttons sit at the end of every ribbon tab, so they need a menu entry too
+    # (without one they had no icon on a fresh Windows install)
+    if ok(["VR_Toggle"]):
+        wb.appendMenu(["&View", "VR"], ok(["VR_Toggle", "VR_Help"]))
     wb.appendMenu("&Tools", ok(["SS_Rebuild", "SS_ShortcutBar", "SS_MassProperties", "Std_Measure",
                                 "Separator", "SS_ApplyLook", "SS_RestoreLook", "SS_Diagnostics"]))
     wb.appendMenu("&File", ok(["SS_NewPart", "SS_NewAssembly", "SS_NewDrawing", "SS_MakeDrawing"]))

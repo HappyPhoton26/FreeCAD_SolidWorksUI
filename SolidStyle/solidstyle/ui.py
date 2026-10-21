@@ -68,7 +68,22 @@ def cmd_icon(cmd):
     if os.path.exists(p):
         return QtGui.QIcon(p)
     a = fc_action(cmd)
-    return a.icon() if a else QtGui.QIcon()
+    if a and not a.icon().isNull():
+        return a.icon()
+    # no action yet (the command isn't in any menu or toolbar): use the command's own pixmap
+    try:
+        c = Gui.Command.get(cmd)
+        pix = c.getInfo().get("pixmap", "") if c else ""
+    except Exception:
+        pix = ""
+    if pix and os.path.isfile(pix):
+        return QtGui.QIcon(pix)
+    if pix:
+        try:
+            return Gui.getIcon(pix)
+        except Exception:
+            pass
+    return QtGui.QIcon()
 
 
 def cmd_tip(cmd, label):
